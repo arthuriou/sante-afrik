@@ -3,16 +3,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { apiService } from '../../../services/api';
 
@@ -32,12 +32,6 @@ export default function PatientLoginScreen() {
     setLoading(true);
     try {
       const response = await apiService.login(email, password);
-      
-      // Vérifier que c'est bien un patient
-      if (response.data.user.role !== 'PATIENT') {
-        Alert.alert('Erreur', 'Ce compte n\'est pas un compte patient');
-        return;
-      }
 
       // Stocker le token et les informations utilisateur
       await AsyncStorage.setItem('userToken', response.data.token);
@@ -59,7 +53,7 @@ export default function PatientLoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <Ionicons name="person" size={40} color="#007AFF" />
@@ -77,7 +71,7 @@ export default function PatientLoginScreen() {
               <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Adresse email"
+                placeholder="Email"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -145,6 +139,7 @@ export default function PatientLoginScreen() {
                 <Text style={styles.signupButtonText}>Créer un compte</Text>
               </TouchableOpacity>
             </View>
+            <View style={styles.bottomSpacer} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -164,10 +159,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 24,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -188,7 +185,7 @@ const styles = StyleSheet.create({
   form: {
     backgroundColor: 'white',
     borderRadius: 16,
-    padding: 24,
+    padding: 28,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -210,16 +207,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
     borderRadius: 12,
-    paddingHorizontal: 15,
-    marginBottom: 16,
-    height: 50,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    height: 56,
   },
   inputIcon: {
     marginRight: 10,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 17,
     color: '#333',
   },
   passwordToggle: {
@@ -228,10 +225,10 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: '#007AFF',
     borderRadius: 12,
-    height: 50,
+    height: 56,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
   },
   loginButtonDisabled: {
     opacity: 0.6,
@@ -252,7 +249,7 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 30,
+    marginVertical: 20,
   },
   dividerLine: {
     flex: 1,
@@ -266,6 +263,11 @@ const styles = StyleSheet.create({
   },
   signupSection: {
     alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  bottomSpacer: {
+    height: 0,
   },
   signupText: {
     color: '#666',

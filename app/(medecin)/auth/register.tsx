@@ -126,7 +126,7 @@ export default function DoctorRegisterScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -138,7 +138,7 @@ export default function DoctorRegisterScreen() {
 
         <View style={styles.content}>
           <View style={styles.iconContainer}>
-            <Ionicons name="medical" size={64} color="#E53E3E" />
+            <Ionicons name="medical" size={64} color="#34C759" />
           </View>
 
           <Text style={styles.title}>Inscription Médecin</Text>
@@ -296,13 +296,14 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
+    paddingBottom: 96,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 36,
+    paddingBottom: 12,
   },
   backButton: {
     padding: 8,
@@ -316,7 +317,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#FED7D7',
+    backgroundColor: '#DCFCE7',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 30,
@@ -332,7 +333,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#718096',
     textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: 28,
     lineHeight: 24,
   },
   form: {
@@ -391,7 +392,7 @@ const styles = StyleSheet.create({
     minHeight: 80,
   },
   registerButton: {
-    backgroundColor: '#E53E3E',
+    backgroundColor: '#34C759',
     paddingVertical: 16,
     borderRadius: 12,
     marginBottom: 30,
@@ -415,7 +416,7 @@ const styles = StyleSheet.create({
   },
   loginLink: {
     fontSize: 16,
-    color: '#E53E3E',
+    color: '#34C759',
     fontWeight: '600',
   },
 });

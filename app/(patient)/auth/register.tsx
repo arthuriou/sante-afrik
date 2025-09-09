@@ -1,17 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function PatientRegisterScreen() {
@@ -29,6 +30,7 @@ export default function PatientRegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -78,16 +80,25 @@ export default function PatientRegisterScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <Ionicons name="person-add" size={40} color="#007AFF" />
-              <Text style={styles.logoText}>Inscription Patient</Text>
-            </View>
-            <Text style={styles.subtitle}>
-              Créez votre compte patient
-            </Text>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#2D3748" />
+            </TouchableOpacity>
           </View>
+
+          <View style={styles.content}>
+          <View style={styles.iconContainer}>
+            <Ionicons name="person-add" size={64} color="#007AFF" />
+          </View>
+
+          <Text style={styles.titleMain}>Inscription Patient</Text>
+          <Text style={styles.subtitle}>
+            Créez votre compte patient pour accéder à la plateforme
+          </Text>
 
           <View style={styles.form}>
             <Text style={styles.title}>Informations personnelles</Text>
@@ -121,7 +132,7 @@ export default function PatientRegisterScreen() {
               <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Adresse email"
+                placeholder="Email"
                 value={formData.email}
                 onChangeText={(value) => handleInputChange('email', value)}
                 keyboardType="email-address"
@@ -136,7 +147,7 @@ export default function PatientRegisterScreen() {
               <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Numéro de téléphone"
+                placeholder="Téléphone"
                 value={formData.phone}
                 onChangeText={(value) => handleInputChange('phone', value)}
                 keyboardType="phone-pad"
@@ -145,16 +156,35 @@ export default function PatientRegisterScreen() {
             </View>
 
             {/* Date de naissance */}
-            <View style={styles.inputContainer}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setShowDatePicker(true)}
+              style={styles.inputContainer}
+            >
               <Ionicons name="calendar-outline" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Date de naissance (JJ/MM/AAAA)"
-                value={formData.birthDate}
-                onChangeText={(value) => handleInputChange('birthDate', value)}
-                placeholderTextColor="#999"
+              <Text style={[styles.input, { color: formData.birthDate ? '#333' : '#999' }]}>
+                {formData.birthDate || 'Date de naissance'}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={formData.birthDate ? new Date(formData.birthDate) : new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                maximumDate={new Date()}
+                onChange={(event, selectedDate) => {
+                  if (Platform.OS !== 'ios') setShowDatePicker(false);
+                  if (selectedDate) {
+                    const d = selectedDate;
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const yyyy = d.getFullYear();
+                    handleInputChange('birthDate', `${dd}/${mm}/${yyyy}`);
+                  }
+                }}
+                onTouchCancel={() => setShowDatePicker(false)}
               />
-            </View>
+            )}
 
             {/* Adresse */}
             <View style={styles.inputContainer}>
@@ -196,7 +226,7 @@ export default function PatientRegisterScreen() {
               <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Confirmer le mot de passe"
+                placeholder="Confirmer mot de passe"
                 value={formData.confirmPassword}
                 onChangeText={(value) => handleInputChange('confirmPassword', value)}
                 secureTextEntry={!showConfirmPassword}
@@ -235,6 +265,8 @@ export default function PatientRegisterScreen() {
                 <Text style={styles.loginButtonText}>Se connecter</Text>
               </TouchableOpacity>
             </View>
+            <View style={styles.bottomSpacer} />
+          </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -252,12 +284,32 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 20,
+    padding: 24,
+    paddingBottom: 96,
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 30,
-    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingTop: 36,
+    paddingBottom: 12,
+  },
+  backButton: {
+    padding: 8,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#E5F0FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -270,29 +322,29 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     marginLeft: 10,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
+  titleMain: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#2D3748',
+    marginBottom: 10,
     textAlign: 'center',
   },
+  subtitle: {
+    fontSize: 16,
+    color: '#718096',
+    textAlign: 'center',
+    marginBottom: 28,
+    lineHeight: 24,
+  },
   form: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    width: '100%',
+    maxWidth: 400,
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 20,
+    marginBottom: 22,
   },
   row: {
     flexDirection: 'row',
@@ -301,11 +353,13 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    paddingHorizontal: 15,
-    marginBottom: 16,
-    height: 50,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    height: 56,
   },
   halfWidth: {
     width: '48%',
@@ -316,7 +370,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
+    color: '#2D3748',
   },
   passwordToggle: {
     padding: 5,
@@ -324,10 +378,10 @@ const styles = StyleSheet.create({
   registerButton: {
     backgroundColor: '#007AFF',
     borderRadius: 12,
-    height: 50,
+    height: 56,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
   },
   registerButtonDisabled: {
     opacity: 0.6,
@@ -339,7 +393,10 @@ const styles = StyleSheet.create({
   },
   loginSection: {
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 24,
+  },
+  bottomSpacer: {
+    height: 80,
   },
   loginText: {
     color: '#666',

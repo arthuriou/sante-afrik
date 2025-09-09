@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:3000/api';
+import axios, { AxiosError } from 'axios';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000';
 
 // Types de base
 export interface User {
@@ -76,43 +78,54 @@ export interface Creneau {
 // Service API générique
 class ApiService {
   private token: string | null = null;
+  private client = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 15000,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  constructor() {
+    this.client.interceptors.request.use((config) => {
+      if (this.token) {
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${this.token}`;
+      }
+      return config;
+    });
+  }
 
   setToken(token: string) {
     this.token = token;
   }
 
-  private getHeaders(): HeadersInit {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
+  private async request<T>(endpoint: string, options: {
+    method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+    body?: any;
+    headers?: Record<string, string>;
+    params?: Record<string, any>;
+  } = {}): Promise<T> {
+    try {
+      const response = await this.client.request<T>({
+        url: endpoint,
+        method: options.method || 'GET',
+        data: options.body,
+        headers: options.headers,
+        params: options.params,
+      });
+      // @ts-ignore axios wraps data
+      return response.data as T;
+    } catch (err) {
+      const error = err as AxiosError<any>;
+      if (error.response) {
+        const data = error.response.data as any;
+        const message = (data && (data.error || data.message)) || `HTTP ${error.response.status}`;
+        throw new Error(message);
+      }
+      if (error.request) {
+        throw new Error('Network request failed. Vérifiez votre connexion et l’URL API.');
+      }
+      throw new Error(error.message || 'Unknown error');
     }
-
-    return headers;
-  }
-
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-    
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || `HTTP ${response.status}`);
-    }
-
-    return response.json();
   }
 
   // Authentification
@@ -129,9 +142,9 @@ class ApiService {
     poids: number;
     taille: number;
   }) {
-    return this.request('/auth/register-patient', {
+    return this.request('/api/auth/register-patient', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: data,
     });
   }
 
@@ -145,9 +158,9 @@ class ApiService {
     experience: number;
     biographie: string;
   }) {
-    return this.request('/auth/register-doctor', {
+    return this.request('/api/auth/register-doctor', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: data,
     });
   }
 
@@ -155,9 +168,9 @@ class ApiService {
     const response = await this.request<{
       message: string;
       data: { user: User; token: string };
-    }>('/auth/login', {
+    }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, motdepasse }),
+      body: { email, motdepasse },
     });
 
     if (response.data.token) {
@@ -168,21 +181,21 @@ class ApiService {
   }
 
   async sendOtp(email: string) {
-    return this.request('/auth/send-otp', {
+    return this.request('/api/auth/send-otp', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: { email },
     });
   }
 
   async verifyOtp(email: string, otp: string) {
-    return this.request('/auth/verify-otp', {
+    return this.request('/api/auth/verify-otp', {
       method: 'POST',
-      body: JSON.stringify({ email, otp }),
+      body: { email, otp },
     });
   }
 
   async getProfile() {
-    return this.request<{ message: string; data: User }>('/auth/profile');
+    return this.request<{ message: string; data: User }>('/api/auth/profile');
   }
 
   // Médecins
@@ -199,7 +212,7 @@ class ApiService {
     if (params?.specialite) query.append('specialite', params.specialite);
 
     return this.request<{ message: string; data: Medecin[] }>(
-      `/auth/medecins?${query.toString()}`
+      `/api/auth/medecins?${query.toString()}`
     );
   }
 
@@ -213,34 +226,34 @@ class ApiService {
     creneau_id?: string;
   }) {
     return this.request<{ message: string; data: RendezVous }>(
-      '/rendezvous',
+      '/api/rendezvous',
       {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: data,
       }
     );
   }
 
   async getRendezVousPatient(patientId: string) {
     return this.request<{ message: string; data: RendezVous[] }>(
-      `/rendezvous/patient/${patientId}`
+      `/api/rendezvous/patient/${patientId}`
     );
   }
 
   async getRendezVousMedecin(medecinId: string) {
     return this.request<{ message: string; data: RendezVous[] }>(
-      `/rendezvous/medecin/${medecinId}`
+      `/api/rendezvous/medecin/${medecinId}`
     );
   }
 
   async confirmRendezVous(rendezVousId: string) {
-    return this.request(`/rendezvous/${rendezVousId}/confirmer`, {
+    return this.request(`/api/rendezvous/${rendezVousId}/confirmer`, {
       method: 'PUT',
     });
   }
 
   async cancelRendezVous(rendezVousId: string) {
-    return this.request(`/rendezvous/${rendezVousId}/annuler`, {
+    return this.request(`/api/rendezvous/${rendezVousId}/annuler`, {
       method: 'PUT',
     });
   }
@@ -252,7 +265,7 @@ class ApiService {
     dateFin: string
   ) {
     return this.request<{ message: string; data: Creneau[] }>(
-      `/rendezvous/medecin/${medecinId}/creneaux-disponibles?dateDebut=${dateDebut}&dateFin=${dateFin}`
+      `/api/rendezvous/medecin/${medecinId}/creneaux-disponibles?dateDebut=${dateDebut}&dateFin=${dateFin}`
     );
   }
 
@@ -262,22 +275,22 @@ class ApiService {
     fin: string;
     disponible: boolean;
   }) {
-    return this.request('/rendezvous/creneaux', {
+    return this.request('/api/rendezvous/creneaux', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: data,
     });
   }
 
   // Spécialités
   async getSpecialites() {
     return this.request<{ message: string; data: Specialite[] }>(
-      '/specialites/specialites'
+      '/api/specialites/specialites'
     );
   }
 
   // Cabinets
   async getCabinets() {
-    return this.request<{ message: string; data: Cabinet[] }>('/cabinets');
+    return this.request<{ message: string; data: Cabinet[] }>('/api/cabinets');
   }
 }
 
