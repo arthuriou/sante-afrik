@@ -13,6 +13,7 @@ import {
 export default function PatientAppointmentsScreen() {
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState('upcoming');
+  const [showEntry, setShowEntry] = useState(true);
 
   const upcomingAppointments = [
     {
@@ -167,6 +168,21 @@ export default function PatientAppointmentsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Entrée de flow RDV */}
+      <View style={styles.entryCard}>
+        <Text style={styles.entryTitle}>Prendre un rendez-vous</Text>
+        <Text style={styles.entrySubtitle}>Recherchez par spécialité ou par mal/symptôme</Text>
+        <View style={styles.entryRow}>
+          <TouchableOpacity style={[styles.entryButton, { backgroundColor: '#007AFF' }]} onPress={() => router.push('/(patient)/screens/search')}>
+            <Ionicons name="medkit-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.entryButtonText}>Par spécialité</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.entryButton, { backgroundColor: '#10B981' }]} onPress={() => router.push('/(patient)/screens/search')}>
+            <Ionicons name="pulse-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.entryButtonText}>Par mal</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
       {/* Onglets */}
       <View style={styles.tabsContainer}>
         {tabs.map((tab) => (
@@ -249,8 +265,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: 'white',
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 8,
   },
+  entryCard: { backgroundColor: 'white', margin: 16, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#E5E7EB' },
+  entryTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 },
+  entrySubtitle: { fontSize: 13, color: '#6B7280', marginBottom: 12 },
+  entryRow: { flexDirection: 'row', gap: 10 },
+  entryButton: { flexDirection: 'row', gap: 6, alignItems: 'center', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, flex: 1, justifyContent: 'center' },
+  entryButtonText: { color: '#FFFFFF', fontWeight: '600' },
+  headerCtaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  bookNow: { flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: '#007AFF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  bookNowText: { color: '#FFFFFF', fontWeight: '600' },
   tab: {
     flex: 1,
     flexDirection: 'row',

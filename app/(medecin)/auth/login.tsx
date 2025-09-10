@@ -32,19 +32,13 @@ export default function MedecinLoginScreen() {
     setLoading(true);
     try {
       const response = await apiService.login(email, password);
-      
-      // Vérifier que c'est bien un médecin
-      if (response.data.user.role !== 'MEDECIN') {
-        Alert.alert('Erreur', 'Ce compte n\'est pas un compte médecin');
-        return;
-      }
 
       // Stocker le token et les informations utilisateur
       await AsyncStorage.setItem('userToken', response.data.token);
       await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
       await AsyncStorage.setItem('userRole', 'MEDECIN');
 
-      // Rediriger vers le tableau de bord médecin
+      // Rediriger vers l'écran initial du groupe médecin
       router.replace('/(medecin)/screens/dashboard' as any);
     } catch (error: any) {
       Alert.alert('Erreur de connexion', error.message);

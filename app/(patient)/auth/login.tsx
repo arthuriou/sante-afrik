@@ -38,7 +38,7 @@ export default function PatientLoginScreen() {
       await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
       await AsyncStorage.setItem('userRole', 'PATIENT');
 
-      // Rediriger vers l'accueil patient
+      // Rediriger vers l'écran initial du groupe patient
       router.replace('/(patient)/screens/home' as any);
     } catch (error: any) {
       Alert.alert('Erreur de connexion', error.message);

@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     SafeAreaView,
     ScrollView,
@@ -11,19 +13,30 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { apiService, User } from '../../../services/api';
 
 export default function PatientProfileScreen() {
   const router = useRouter();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
 
-  const userInfo = {
-    name: 'Marie Dupont',
-    email: 'marie.dupont@email.com',
-    phone: '+33 6 12 34 56 78',
-    birthDate: '15/03/1985',
-    address: '123 rue de la Paix, 75001 Paris',
-    emergencyContact: 'Jean Dupont (+33 6 98 76 54 32)',
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getProfile();
+      setUser(response.data);
+    } catch (error) {
+      console.error('Erreur lors du chargement du profil:', error);
+      Alert.alert('Erreur', 'Impossible de charger le profil');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const menuSections = [
@@ -130,7 +143,11 @@ export default function PatientProfileScreen() {
   const handleAction = (item) => {
     switch (item.action) {
       case 'navigate':
-        Alert.alert('Navigation', `Navigation vers ${item.title}`);
+        if (item.id === 'edit-profile') {
+          router.navigate('/(patient)/modals/edit-profile');
+        } else {
+          Alert.alert('Navigation', `Navigation vers ${item.title}`);
+        }
         break;
       case 'toggle':
         item.onToggle(!item.value);
@@ -141,9 +158,14 @@ export default function PatientProfileScreen() {
           'Êtes-vous sûr de vouloir vous déconnecter ?',
           [
             { text: 'Annuler', style: 'cancel' },
-            { text: 'Déconnexion', style: 'destructive', onPress: () => {
-              // Ici, vous feriez la déconnexion et redirigeriez vers l'écran de sélection
-              router.replace('/');
+            { text: 'Déconnexion', style: 'destructive', onPress: async () => {
+              try {
+                await AsyncStorage.removeItem('userToken');
+                router.replace('/');
+              } catch (error) {
+                console.error('Erreur lors de la déconnexion:', error);
+                router.replace('/');
+              }
             }},
           ]
         );
@@ -188,6 +210,17 @@ export default function PatientProfileScreen() {
     </TouchableOpacity>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>Chargement du profil...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -202,10 +235,15 @@ export default function PatientProfileScreen() {
             </TouchableOpacity>
           </View>
           
-          <Text style={styles.userName}>{userInfo.name}</Text>
-          <Text style={styles.userEmail}>{userInfo.email}</Text>
+          <Text style={styles.userName}>
+            {user ? `${user.prenom} ${user.nom}` : 'Chargement...'}
+          </Text>
+          <Text style={styles.userEmail}>{user?.email || ''}</Text>
           
-          <TouchableOpacity style={styles.editProfileButton}>
+          <TouchableOpacity 
+            style={styles.editProfileButton}
+            onPress={() => router.navigate('/(patient)/modals/edit-profile')}
+          >
             <Ionicons name="create-outline" size={16} color="#007AFF" />
             <Text style={styles.editProfileText}>Modifier le profil</Text>
           </TouchableOpacity>
@@ -215,11 +253,13 @@ export default function PatientProfileScreen() {
         <View style={styles.quickInfo}>
           <View style={styles.infoItem}>
             <Ionicons name="call-outline" size={20} color="#007AFF" />
-            <Text style={styles.infoText}>{userInfo.phone}</Text>
+            <Text style={styles.infoText}>{user?.telephone || 'Non renseigné'}</Text>
           </View>
           <View style={styles.infoItem}>
             <Ionicons name="location-outline" size={20} color="#007AFF" />
-            <Text style={styles.infoText}>{userInfo.address}</Text>
+            <Text style={styles.infoText}>
+              {user?.patient?.adresse || 'Non renseigné'}
+            </Text>
           </View>
         </View>
 
@@ -371,6 +411,16 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 12,
+    color: '#8E8E93',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
     color: '#8E8E93',
   },
 });

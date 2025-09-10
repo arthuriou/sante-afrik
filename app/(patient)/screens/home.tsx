@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function PatientHomeScreen() {
@@ -39,25 +39,45 @@ export default function PatientHomeScreen() {
             <Ionicons name="search-outline" size={20} color="#8E8E93" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Rechercher un médecin, une spécialité..."
-              placeholderTextColor="#8E8E93"
+              placeholder="Rechercher un médecin ou une spécialité..."
+              placeholderTextColor="#6B7280"
             />
           </View>
         </View>
 
-        {/* Message de bienvenue */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeTitle}>Bonjour ! 👋</Text>
-          <Text style={styles.welcomeSubtitle}>
-            Comment pouvons-nous vous aider aujourd'hui ?
-          </Text>
+        {/* Entrées rapides: Spécialité / Maux */}
+        <View style={styles.section}> 
+          <View style={styles.quickEntryRow}>
+            <TouchableOpacity style={[styles.quickEntryCard, { borderColor: '#007AFF' }]} onPress={() => router.push('/(patient)/screens/search')}>
+              <View style={[styles.quickEntryIcon, { backgroundColor: '#007AFF20' }]}>
+                <Ionicons name={"medkit-outline" as unknown as any} size={22} color="#007AFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.quickEntryTitle}>Par spécialité</Text>
+                <Text style={styles.quickEntrySubtitle}>Cardiologie, Dermatologie, etc.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.quickEntryRow}>
+            <TouchableOpacity style={[styles.quickEntryCard, { borderColor: '#10B981' }]} onPress={() => router.push('/(patient)/screens/search')}>
+              <View style={[styles.quickEntryIcon, { backgroundColor: '#10B98120' }]}>
+                <Ionicons name={"pulse-outline" as unknown as any} size={22} color="#10B981" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.quickEntryTitle}>Par mal / symptôme</Text>
+                <Text style={styles.quickEntrySubtitle}>Douleur thoracique, fièvre, etc.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Actions rapides */}
+        {/* Entrées rapides seules */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions rapides</Text>
           <View style={styles.quickActionsGrid}>
-            {quickActions.map((action) => (
+            {quickActions.slice(0,2).map((action) => (
               <TouchableOpacity 
                 key={action.id} 
                 style={styles.quickActionCard}
@@ -67,7 +87,7 @@ export default function PatientHomeScreen() {
                 }}
               >
                 <View style={[styles.quickActionIcon, { backgroundColor: action.color + '20' }]}>
-                  <Ionicons name={action.icon} size={24} color={action.color} />
+                  <Ionicons name={action.icon as any} size={24} color={action.color} />
                 </View>
                 <Text style={styles.quickActionTitle}>{action.title}</Text>
                 <Text style={styles.quickActionSubtitle}>{action.subtitle}</Text>
@@ -87,7 +107,7 @@ export default function PatientHomeScreen() {
                 onPress={() => router.push('/(patient)/screens/search')}
               >
                 <View style={[styles.specialtyIcon, { backgroundColor: specialty.color + '20' }]}>
-                  <Ionicons name={specialty.icon} size={28} color={specialty.color} />
+                  <Ionicons name={specialty.icon as any} size={28} color={specialty.color} />
                 </View>
                 <Text style={styles.specialtyName}>{specialty.name}</Text>
               </TouchableOpacity>
@@ -95,42 +115,30 @@ export default function PatientHomeScreen() {
           </ScrollView>
         </View>
 
-        {/* Prochains rendez-vous */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Prochains rendez-vous</Text>
-          <View style={styles.appointmentCard}>
+        {/* Lien rapide RDV */}
+        <View style={styles.sectionLarge}>
+          <TouchableOpacity style={styles.appointmentCard} onPress={() => router.push('/(patient)/screens/appointments')}>
             <View style={styles.appointmentIcon}>
               <Ionicons name="calendar-outline" size={24} color="#007AFF" />
             </View>
             <View style={styles.appointmentInfo}>
-              <Text style={styles.appointmentTitle}>Dr. Martin Dubois</Text>
-              <Text style={styles.appointmentSpecialty}>Médecine générale</Text>
-              <Text style={styles.appointmentDate}>Lundi 15 Janvier - 14h30</Text>
+              <Text style={styles.appointmentTitle}>Prendre un rendez-vous</Text>
+              <Text style={styles.appointmentSpecialty}>Rechercher un professionnel et choisir un créneau</Text>
             </View>
-            <TouchableOpacity 
-              style={styles.appointmentButton}
-              onPress={() => router.push('/(patient)/screens/appointments')}
-            >
-              <Ionicons name="chevron-forward-outline" size={20} color="#007AFF" />
-            </TouchableOpacity>
+            <Ionicons name="chevron-forward-outline" size={20} color="#007AFF" />
+          </TouchableOpacity>
+        </View>
+
+
+        {/* À propos minimal */}
+        <View style={styles.section}>
+          <View style={styles.aboutCard}>
+            <Ionicons name="information-circle-outline" size={22} color="#8E8E93" />
+            <Text style={styles.aboutText}>SantéAfrik: vos RDV et documents médicaux, au même endroit.</Text>
           </View>
         </View>
 
-        {/* Conseils santé */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Conseils santé</Text>
-          <View style={styles.tipCard}>
-            <View style={styles.tipIcon}>
-              <Ionicons name="bulb-outline" size={24} color="#FF9500" />
-            </View>
-            <View style={styles.tipContent}>
-              <Text style={styles.tipTitle}>Conseil du jour</Text>
-              <Text style={styles.tipText}>
-                Buvez au moins 1,5L d'eau par jour pour maintenir une bonne hydratation.
-              </Text>
-            </View>
-          </View>
-        </View>
+        <View style={styles.footerSpacer} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -151,12 +159,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F2F7',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
-    fontSize: 16,
+    fontSize: 14,
     color: '#000',
   },
   welcomeSection: {
@@ -175,14 +183,50 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
   },
   section: {
-    marginTop: 16,
+    marginTop: 32,
     paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  sectionLarge: {
+    marginTop: 40,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  quickEntryRow: {
+    marginBottom: 16,
+  },
+  quickEntryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  quickEntryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  quickEntryTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  quickEntrySubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#000',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   quickActionsGrid: {
     flexDirection: 'row',
@@ -228,15 +272,18 @@ const styles = StyleSheet.create({
   specialtyCard: {
     backgroundColor: 'white',
     borderRadius: 12,
-    padding: 16,
-    marginRight: 12,
+    padding: 10,
+    justifyContent: 'center',
     alignItems: 'center',
-    width: 100,
+    marginRight: 16,
+    width: 150,
+    height: 150,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    marginBottom: 16,
   },
   specialtyIcon: {
     width: 56,
@@ -329,5 +376,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     lineHeight: 20,
+  },
+  aboutCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  aboutText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  footerSpacer: {
+    height: 32,
   },
 });

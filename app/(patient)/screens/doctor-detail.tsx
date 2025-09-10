@@ -2,20 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Dimensions,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
 export default function PatientDoctorDetailScreen() {
   const router = useRouter();
-  const [selectedTime, setSelectedTime] = useState(null);
+  const [selectedTime, setSelectedTime] = useState<number | null>(null);
 
   const doctor = {
     id: 1,
@@ -81,7 +81,7 @@ export default function PatientDoctorDetailScreen() {
   const handleBookAppointment = () => {
     if (selectedTime) {
       // Ici, vous navigueriez vers l'écran de réservation
-      router.push('/(patient)/screens/book-appointment');
+      router.push({ pathname: '/(patient)/screens/appointments' } as any);
     }
   };
 

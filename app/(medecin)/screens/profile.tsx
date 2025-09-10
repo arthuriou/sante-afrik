@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -165,8 +166,13 @@ export default function MedecinProfileScreen() {
           'Êtes-vous sûr de vouloir vous déconnecter ?',
           [
             { text: 'Annuler', style: 'cancel' },
-            { text: 'Déconnexion', style: 'destructive', onPress: () => {
-              router.replace('/');
+            { text: 'Déconnexion', style: 'destructive', onPress: async () => {
+              try {
+                await AsyncStorage.removeItem('userToken');
+                await AsyncStorage.removeItem('userData');
+                await AsyncStorage.removeItem('userRole');
+              } catch {}
+              router.replace('/(auth)/medecin/login');
             }},
           ]
         );

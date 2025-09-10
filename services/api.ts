@@ -99,7 +99,7 @@ class ApiService {
   }
 
   private async request<T>(endpoint: string, options: {
-    method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+    method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
     body?: any;
     headers?: Record<string, string>;
     params?: Record<string, any>;
@@ -198,6 +198,30 @@ class ApiService {
     return this.request<{ message: string; data: User }>('/api/auth/profile');
   }
 
+  async updateProfile(data: {
+    datenaissance?: string;
+    genre?: 'M' | 'F';
+    adresse?: string;
+    groupesanguin?: string;
+    poids?: number;
+    taille?: number;
+  }) {
+    return this.request<{ message: string }>('/api/auth/profile/patient', {
+      method: 'PATCH',
+      body: data,
+    });
+  }
+
+  async updateProfilePhoto(photoData: FormData) {
+    return this.request<{ message: string; data: { url: string; user: User } }>('/api/auth/profile/photo', {
+      method: 'POST',
+      body: photoData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  }
+
   // Médecins
   async getMedecins(params?: {
     page?: number;
@@ -213,6 +237,12 @@ class ApiService {
 
     return this.request<{ message: string; data: Medecin[] }>(
       `/api/auth/medecins?${query.toString()}`
+    );
+  }
+
+  async getUserById(userId: string) {
+    return this.request<{ message: string; data: User }>(
+      `/api/auth/user/${userId}`
     );
   }
 
