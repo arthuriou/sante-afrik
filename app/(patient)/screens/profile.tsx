@@ -82,11 +82,19 @@ export default function PatientProfileScreen() {
       const nameGuess = (uri.split('/').pop() || `photo_${Date.now()}.jpg`).replace(/\?.*$/, '');
       const typeGuess = (asset as any).mimeType || 'image/jpeg';
 
+      console.log('🔍 DEBUG UPLOAD:');
+      console.log('URI:', uri);
+      console.log('Name:', nameGuess);
+      console.log('Type:', typeGuess);
+
       const form = new FormData();
       // @ts-ignore: React Native file type
       form.append('file', { uri, name: nameGuess, type: typeGuess });
 
+      console.log('FormData créé, envoi...');
       const resp = await apiService.updateProfilePhoto(form);
+      console.log('✅ Réponse reçue:', resp);
+      
       if ((resp as any)?.data?.user) {
         setUser((resp as any).data.user);
       } else {
@@ -94,6 +102,7 @@ export default function PatientProfileScreen() {
       }
       Alert.alert('Succès', 'Photo de profil mise à jour');
     } catch (e: any) {
+      console.error('❌ Erreur upload:', e);
       Alert.alert('Erreur', e?.message || 'Échec de la mise à jour de la photo');
     }
   };

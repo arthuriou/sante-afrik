@@ -257,13 +257,30 @@ class ApiService {
   }
 
   async updateProfilePhoto(photoData: FormData) {
-    return this.request<{ message: string; data: { url: string; user: User } }>('/api/auth/profile/photo', {
-      method: 'POST',
-      body: photoData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    console.log('🚀 API Upload - URL:', `${API_BASE_URL}/api/auth/profile/photo`);
+    console.log('🚀 API Upload - Token présent:', !!this.token);
+    console.log('🚀 API Upload - FormData:', photoData);
+
+    try {
+      const response = await this.client.post('/api/auth/profile/photo', photoData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        transformRequest: (data) => data, // Ne pas sérialiser le FormData
+      });
+
+      console.log('🚀 API Upload - Status:', response.status);
+      console.log('🚀 API Upload - Succès:', response.data);
+      return response.data as { message: string; data: { url: string; user: User; storage: string } };
+    } catch (error: any) {
+      console.log('🚀 API Upload - Erreur:', error.response?.data || error.message);
+      if (error.response) {
+        const data = error.response.data as any;
+        const message = (data && (data.error || data.message)) || `HTTP ${error.response.status}`;
+        throw new Error(message);
+      }
+      throw new Error(error.message || 'Erreur upload');
+    }
   }
 
   // Médecins
