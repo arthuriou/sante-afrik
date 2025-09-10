@@ -1,6 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosError } from 'axios';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000';
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000';
 
 // Types de base
 export interface User {
@@ -105,6 +106,14 @@ class ApiService {
     params?: Record<string, any>;
   } = {}): Promise<T> {
     try {
+      // S'assurer que le token est présent (ex: après redémarrage de l'app)
+      if (!this.token) {
+        const storedToken = await AsyncStorage.getItem('userToken');
+        if (storedToken) {
+          this.setToken(storedToken);
+        }
+      }
+
       const response = await this.client.request<T>({
         url: endpoint,
         method: options.method || 'GET',
@@ -206,10 +215,45 @@ class ApiService {
     poids?: number;
     taille?: number;
   }) {
-    return this.request<{ message: string }>('/api/auth/profile/patient', {
-      method: 'PATCH',
-      body: data,
-    });
+    // Certains backends exigent userId si le middleware n'attache pas l'utilisateur
+    try {
+      const userDataRaw = await AsyncStorage.getItem('userData');
+      const userData = userDataRaw ? JSON.parse(userDataRaw) : null;
+      const userId = userData?.idutilisateur;
+      const body = userId ? { userId, ...data } : data;
+      return this.request<{ message: string }>('/api/auth/profile/patient', {
+        method: 'PATCH',
+        body,
+      });
+    } catch {
+      return this.request<{ message: string }>('/api/auth/profile/patient', {
+        method: 'PATCH',
+        body: data,
+      });
+    }
+  }
+
+  // Mise à jour informations de base utilisateur (nom, prenom, telephone)
+  async updateUserProfile(data: {
+    nom?: string;
+    prenom?: string;
+    telephone?: string;
+  }) {
+    try {
+      const userDataRaw = await AsyncStorage.getItem('userData');
+      const userData = userDataRaw ? JSON.parse(userDataRaw) : null;
+      const userId = userData?.idutilisateur;
+      const body = userId ? { userId, ...data } : data;
+      return this.request<{ message: string; data?: User }>('/api/auth/profile', {
+        method: 'PATCH',
+        body,
+      });
+    } catch {
+      return this.request<{ message: string; data?: User }>('/api/auth/profile', {
+        method: 'PATCH',
+        body: data,
+      });
+    }
   }
 
   async updateProfilePhoto(photoData: FormData) {

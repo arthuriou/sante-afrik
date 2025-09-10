@@ -1,19 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { apiService, User } from '../../../services/api';
+import { API_BASE_URL, apiService, User } from '../../../services/api';
 
 export default function PatientProfileScreen() {
   const router = useRouter();
@@ -22,9 +24,28 @@ export default function PatientProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
 
+  type MenuAction = 'navigate' | 'toggle' | 'logout';
+  interface MenuItem {
+    id: string;
+    title: string;
+    icon: any;
+    action: MenuAction;
+    color?: string;
+    value?: boolean;
+    onToggle?: (next: boolean) => void;
+    subtitle?: string;
+  }
+
   useEffect(() => {
     loadProfile();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Recharger le profil à chaque focus pour refléter les dernières modifications
+      loadProfile();
+    }, [])
+  );
 
   const loadProfile = async () => {
     try {
@@ -39,7 +60,45 @@ export default function PatientProfileScreen() {
     }
   };
 
-  const menuSections = [
+  const handlePickAndUploadPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', "Autorisez l'accès à la galerie pour changer la photo.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+
+      const asset = result.assets[0];
+      const uri = asset.uri as string;
+      const nameGuess = (uri.split('/').pop() || `photo_${Date.now()}.jpg`).replace(/\?.*$/, '');
+      const typeGuess = (asset as any).mimeType || 'image/jpeg';
+
+      const form = new FormData();
+      // @ts-ignore: React Native file type
+      form.append('file', { uri, name: nameGuess, type: typeGuess });
+
+      const resp = await apiService.updateProfilePhoto(form);
+      if ((resp as any)?.data?.user) {
+        setUser((resp as any).data.user);
+      } else {
+        await loadProfile();
+      }
+      Alert.alert('Succès', 'Photo de profil mise à jour');
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Échec de la mise à jour de la photo');
+    }
+  };
+
+  const menuSections: { title: string; items: MenuItem[] }[] = [
     {
       title: 'Informations personnelles',
       items: [
@@ -140,7 +199,7 @@ export default function PatientProfileScreen() {
     },
   ];
 
-  const handleAction = (item) => {
+  const handleAction = (item: MenuItem) => {
     switch (item.action) {
       case 'navigate':
         if (item.id === 'edit-profile') {
@@ -150,7 +209,9 @@ export default function PatientProfileScreen() {
         }
         break;
       case 'toggle':
-        item.onToggle(!item.value);
+        if (item.onToggle) {
+          item.onToggle(!Boolean(item.value));
+        }
         break;
       case 'logout':
         Alert.alert(
@@ -173,7 +234,7 @@ export default function PatientProfileScreen() {
     }
   };
 
-  const renderMenuItem = (item) => (
+  const renderMenuItem = (item: MenuItem) => (
     <TouchableOpacity
       key={item.id}
       style={styles.menuItem}
@@ -227,10 +288,17 @@ export default function PatientProfileScreen() {
         {/* En-tête du profil */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Ionicons name="person" size={40} color="#8E8E93" />
-            </View>
-            <TouchableOpacity style={styles.editAvatarButton}>
+            {user?.photoprofil ? (
+              <Image
+                source={{ uri: user.photoprofil.startsWith('http') ? user.photoprofil : `${API_BASE_URL}${user.photoprofil}` }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatar}>
+                <Ionicons name="person" size={40} color="#8E8E93" />
+              </View>
+            )}
+            <TouchableOpacity style={styles.editAvatarButton} onPress={handlePickAndUploadPhoto}>
               <Ionicons name="camera" size={16} color="white" />
             </TouchableOpacity>
           </View>
@@ -304,6 +372,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F2F7',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F2F2F7',
   },
   editAvatarButton: {
     position: 'absolute',

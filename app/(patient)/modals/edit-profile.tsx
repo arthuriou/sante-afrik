@@ -2,15 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { apiService, User } from '../../../services/api';
 
@@ -24,6 +24,8 @@ export default function EditProfileScreen() {
     nom: '',
     prenom: '',
     telephone: '',
+    datenaissance: '',
+    genre: '',
     adresse: '',
     groupesanguin: '',
     poids: '',
@@ -45,6 +47,8 @@ export default function EditProfileScreen() {
         nom: userData.nom || '',
         prenom: userData.prenom || '',
         telephone: userData.telephone || '',
+        datenaissance: userData.patient?.datenaissance ? userData.patient.datenaissance.substring(0, 10) : '',
+        genre: (userData.patient?.genre as any) || '',
         adresse: userData.patient?.adresse || '',
         groupesanguin: userData.patient?.groupesanguin || '',
         poids: userData.patient?.poids?.toString() || '',
@@ -76,16 +80,26 @@ export default function EditProfileScreen() {
         return;
       }
 
-      // Préparer les données selon le backend (seulement les champs supportés)
-      const updateData: any = {};
+      // Séparer la mise à jour utilisateur (nom, prénom, téléphone) et patient (adresse, groupe, poids, taille)
+      const userUpdate: any = {};
+      if (formData.nom.trim()) userUpdate.nom = formData.nom.trim();
+      if (formData.prenom.trim()) userUpdate.prenom = formData.prenom.trim();
+      if (formData.telephone.trim()) userUpdate.telephone = formData.telephone.trim();
 
-      // Ajouter les données patient si elles existent
-      if (formData.adresse.trim()) updateData.adresse = formData.adresse.trim();
-      if (formData.groupesanguin.trim()) updateData.groupesanguin = formData.groupesanguin.trim();
-      if (poids) updateData.poids = poids;
-      if (taille) updateData.taille = taille;
+      const patientUpdate: any = {};
+      if (formData.datenaissance.trim()) patientUpdate.datenaissance = formData.datenaissance.trim();
+      if (formData.genre.trim()) patientUpdate.genre = formData.genre.trim() as 'M' | 'F';
+      if (formData.adresse.trim()) patientUpdate.adresse = formData.adresse.trim();
+      if (formData.groupesanguin.trim()) patientUpdate.groupesanguin = formData.groupesanguin.trim();
+      if (poids !== undefined) patientUpdate.poids = poids;
+      if (taille !== undefined) patientUpdate.taille = taille;
 
-      await apiService.updateProfile(updateData);
+      if (Object.keys(userUpdate).length > 0) {
+        await apiService.updateUserProfile(userUpdate);
+      }
+      if (Object.keys(patientUpdate).length > 0) {
+        await apiService.updateProfile(patientUpdate);
+      }
       
       Alert.alert('Succès', 'Profil mis à jour avec succès', [
         { text: 'OK', onPress: () => router.back() }
@@ -180,6 +194,31 @@ export default function EditProfileScreen() {
                 placeholderTextColor="#8E8E93"
                 keyboardType="phone-pad"
               />
+            </View>
+
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfWidth]}>
+                <Text style={styles.label}>Date de naissance (YYYY-MM-DD)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.datenaissance}
+                  onChangeText={(text) => setFormData({ ...formData, datenaissance: text })}
+                  placeholder="1990-01-15"
+                  placeholderTextColor="#8E8E93"
+                />
+              </View>
+              <View style={[styles.inputGroup, styles.halfWidth]}>
+                <Text style={styles.label}>Genre (M/F)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.genre}
+                  onChangeText={(text) => setFormData({ ...formData, genre: text.toUpperCase() })}
+                  placeholder="M ou F"
+                  placeholderTextColor="#8E8E93"
+                  autoCapitalize="characters"
+                  maxLength={1}
+                />
+              </View>
             </View>
           </View>
 
