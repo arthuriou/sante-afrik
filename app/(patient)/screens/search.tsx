@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     FlatList,
     SafeAreaView,
     ScrollView,
@@ -11,69 +13,108 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { apiService, Maux, Medecin, Specialite } from '../../../services/api';
 
 export default function PatientSearchScreen() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'specialites' | 'maux'>('specialites');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSpecialty, setSelectedSpecialty] = useState(null);
+  const [specialties, setSpecialties] = useState<Specialite[]>([]);
+  const [maux, setMaux] = useState<Maux[]>([]);
+  const [doctors, setDoctors] = useState<Medecin[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [cabinetId, setCabinetId] = useState<string | undefined>(undefined);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
+  const [selectedMal, setSelectedMal] = useState<string | null>(null);
 
-  const specialties = [
-    { id: 1, name: 'Médecine générale', icon: 'medical-outline' },
-    { id: 2, name: 'Cardiologie', icon: 'heart-outline' },
-    { id: 3, name: 'Dermatologie', icon: 'body-outline' },
-    { id: 4, name: 'Gynécologie', icon: 'female-outline' },
-    { id: 5, name: 'Pédiatrie', icon: 'people-outline' },
-    { id: 6, name: 'Ophtalmologie', icon: 'eye-outline' },
-    { id: 7, name: 'Neurologie', icon: 'brain-outline' },
-    { id: 8, name: 'Orthopédie', icon: 'fitness-outline' },
-  ];
+  // Charger les spécialités
+  const loadSpecialties = useCallback(async () => {
+    try {
+      setLoading(true);
+      console.log('🔄 Chargement des spécialités...');
+      const response = await apiService.getSpecialites();
+      console.log('✅ Spécialités reçues:', response);
+      setSpecialties(response.data || []);
+      console.log('📋 Spécialités dans le state:', response.data?.length || 0);
+    } catch (error) {
+      console.error('❌ Erreur chargement spécialités:', error);
+      Alert.alert('Erreur', 'Impossible de charger les spécialités');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const doctors = [
-    {
-      id: 1,
-      name: 'Dr. Martin Dubois',
-      specialty: 'Médecine générale',
-      rating: 4.8,
-      reviews: 127,
-      distance: '0.3 km',
-      price: '25€',
-      nextAvailable: 'Aujourd\'hui 14h30',
-      verified: true,
-    },
-    {
-      id: 2,
-      name: 'Dr. Sophie Laurent',
-      specialty: 'Cardiologie',
-      rating: 4.9,
-      reviews: 89,
-      distance: '0.8 km',
-      price: '50€',
-      nextAvailable: 'Demain 09h00',
-      verified: true,
-    },
-    {
-      id: 3,
-      name: 'Dr. Pierre Moreau',
-      specialty: 'Dermatologie',
-      rating: 4.7,
-      reviews: 203,
-      distance: '1.2 km',
-      price: '40€',
-      nextAvailable: 'Mercredi 16h00',
-      verified: false,
-    },
-  ];
+  // Charger les maux
+  const loadMaux = useCallback(async () => {
+    try {
+      setLoading(true);
+      console.log('🔄 Chargement des maux...');
+      const response = await apiService.getMaux();
+      console.log('✅ Maux reçus:', response);
+      setMaux(response.data || []);
+      console.log('📋 Maux dans le state:', response.data?.length || 0);
+    } catch (error) {
+      console.error('❌ Erreur chargement maux:', error);
+      Alert.alert('Erreur', 'Impossible de charger les maux');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const renderDoctor = ({ item }: { item: any }) => (
+  // Charger les médecins (par spécialité et/ou recherche)
+  const loadDoctors = useCallback(async (specialtyId?: string, query?: string) => {
+    try {
+      setLoading(true);
+      console.log('🔄 Chargement des médecins (endpoint spécialités)...', { specialtyId, query, cabinetId });
+      if (!specialtyId) {
+        setDoctors([]);
+        return;
+      }
+      const response = await apiService.getMedecinsBySpecialiteId(specialtyId, {
+        q: query || undefined,
+        page: 1,
+        limit: 50,
+        cabinet_id: cabinetId,
+      });
+      console.log('✅ Médecins reçus:', response);
+      setDoctors(response.data || []);
+      console.log('👨‍⚕️ Médecins dans le state:', response.data?.length || 0);
+    } catch (error) {
+      console.error('❌ Erreur chargement médecins:', error);
+      Alert.alert('Erreur', 'Impossible de charger les médecins');
+    } finally {
+      setLoading(false);
+    }
+  }, [cabinetId]);
+
+  useEffect(() => {
+    if (activeTab === 'specialites') {
+      loadSpecialties();
+    } else {
+      loadMaux();
+    }
+  }, [activeTab, loadSpecialties, loadMaux]);
+
+  useEffect(() => {
+    // Charger à chaque changement de spécialité ou de texte de recherche
+    if (activeTab === 'specialites') {
+      loadDoctors(selectedSpecialty || undefined, searchQuery || undefined);
+    }
+  }, [activeTab, selectedSpecialty, searchQuery, loadDoctors]);
+
+  const renderDoctor = ({ item }: { item: Medecin }) => (
     <TouchableOpacity 
       style={styles.doctorCard}
-      onPress={() => router.push('/(patient)/screens/doctor-detail')}
+      onPress={() => router.push({
+        pathname: '/(patient)/screens/doctor-detail',
+        params: { doctorId: item.idmedecin }
+      })}
     >
       <View style={styles.doctorImageContainer}>
         <View style={styles.doctorImage}>
           <Ionicons name="person" size={30} color="#8E8E93" />
         </View>
-        {item.verified && (
+        {item.statut === 'APPROVED' && (
           <View style={styles.verifiedBadge}>
             <Ionicons name="checkmark" size={12} color="white" />
           </View>
@@ -82,35 +123,91 @@ export default function PatientSearchScreen() {
       
       <View style={styles.doctorInfo}>
         <View style={styles.doctorHeader}>
-          <Text style={styles.doctorName}>{item.name}</Text>
+          <Text style={styles.doctorName}>{item.prenom} {item.nom}</Text>
           <View style={styles.ratingContainer}>
             <Ionicons name="star" size={14} color="#FFD700" />
-            <Text style={styles.rating}>{item.rating}</Text>
-            <Text style={styles.reviews}>({item.reviews})</Text>
+            <Text style={styles.rating}>4.8</Text>
+            <Text style={styles.reviews}>({item.experience})</Text>
           </View>
         </View>
         
-        <Text style={styles.doctorSpecialty}>{item.specialty}</Text>
+        <Text style={styles.doctorSpecialty}>
+          {item.specialites?.map(s => s.nom).join(', ') || 'Médecine générale'}
+        </Text>
         
         <View style={styles.doctorDetails}>
           <View style={styles.detailItem}>
-            <Ionicons name="location-outline" size={14} color="#8E8E93" />
-            <Text style={styles.detailText}>{item.distance}</Text>
+            <Ionicons name="briefcase-outline" size={14} color="#8E8E93" />
+            <Text style={styles.detailText}>{item.experience} ans exp.</Text>
           </View>
           <View style={styles.detailItem}>
-            <Ionicons name="time-outline" size={14} color="#8E8E93" />
-            <Text style={styles.detailText}>{item.nextAvailable}</Text>
+            <Ionicons name="document-text-outline" size={14} color="#8E8E93" />
+            <Text style={styles.detailText}>N° {item.numordre}</Text>
           </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="card-outline" size={14} color="#8E8E93" />
-            <Text style={styles.detailText}>{item.price}</Text>
-          </View>
+          {item.cabinet?.nom && (
+            <View style={styles.detailItem}>
+              <Ionicons name="business-outline" size={14} color="#8E8E93" />
+              <Text style={styles.detailText}>{item.cabinet.nom}</Text>
+            </View>
+          )}
         </View>
       </View>
       
       <TouchableOpacity style={styles.bookButton}>
         <Text style={styles.bookButtonText}>Réserver</Text>
       </TouchableOpacity>
+    </TouchableOpacity>
+  );
+
+  const renderSpecialty = ({ item }: { item: Specialite }) => (
+    <TouchableOpacity
+      style={[
+        styles.specialtyCard,
+        selectedSpecialty === item.idspecialite && styles.specialtyCardSelected
+      ]}
+      onPress={() => setSelectedSpecialty(
+        selectedSpecialty === item.idspecialite ? null : item.idspecialite
+      )}
+    >
+      <Ionicons
+        name="medical-outline"
+        size={24}
+        color={selectedSpecialty === item.idspecialite ? 'white' : '#007AFF'}
+      />
+      <Text
+        style={[
+          styles.specialtyName,
+          selectedSpecialty === item.idspecialite && styles.specialtyNameSelected
+        ]}
+      >
+        {item.nom}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const renderMal = ({ item }: { item: Maux }) => (
+    <TouchableOpacity
+      style={[
+        styles.specialtyCard,
+        selectedMal === item.idmaux && styles.specialtyCardSelected
+      ]}
+      onPress={() => setSelectedMal(
+        selectedMal === item.idmaux ? null : item.idmaux
+      )}
+    >
+      <Ionicons
+        name="medical-outline"
+        size={24}
+        color={selectedMal === item.idmaux ? 'white' : '#007AFF'}
+      />
+      <Text
+        style={[
+          styles.specialtyName,
+          selectedMal === item.idmaux && styles.specialtyNameSelected
+        ]}
+      >
+        {item.nom}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -136,79 +233,107 @@ export default function PatientSearchScreen() {
           </View>
         </View>
 
-        {/* Filtres */}
-        <View style={styles.filtersContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <TouchableOpacity style={styles.filterButton}>
-              <Ionicons name="location-outline" size={16} color="#007AFF" />
-              <Text style={styles.filterButtonText}>Localisation</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.filterButton}>
-              <Ionicons name="time-outline" size={16} color="#007AFF" />
-              <Text style={styles.filterButtonText}>Disponibilité</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.filterButton}>
-              <Ionicons name="card-outline" size={16} color="#007AFF" />
-              <Text style={styles.filterButtonText}>Prix</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.filterButton}>
-              <Ionicons name="star-outline" size={16} color="#007AFF" />
-              <Text style={styles.filterButtonText}>Note</Text>
-            </TouchableOpacity>
-          </ScrollView>
+        {/* Onglets */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'specialites' && styles.activeTab]}
+            onPress={() => setActiveTab('specialites')}
+          >
+            <Text style={[styles.tabText, activeTab === 'specialites' && styles.activeTabText]}>
+              Spécialités
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'maux' && styles.activeTab]}
+            onPress={() => setActiveTab('maux')}
+          >
+            <Text style={[styles.tabText, activeTab === 'maux' && styles.activeTabText]}>
+              Maux
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Spécialités */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Spécialités</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {specialties.map((specialty) => (
-              <TouchableOpacity
-                key={specialty.id}
-                style={[
-                  styles.specialtyCard,
-                  selectedSpecialty === specialty.id && styles.specialtyCardSelected
-                ]}
-                onPress={() => setSelectedSpecialty(
-                  selectedSpecialty === specialty.id ? null : specialty.id as any
+        {/* Contenu selon l'onglet actif */}
+        {activeTab === 'specialites' ? (
+          <>
+            {/* Spécialités */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Choisir une spécialité</Text>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                </View>
+              ) : (
+                <>
+                  {console.log('🎯 Rendu spécialités:', specialties.length, specialties)}
+                  <FlatList
+                    data={specialties}
+                    renderItem={renderSpecialty}
+                    keyExtractor={(item) => item.idspecialite}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                  />
+                </>
+              )}
+            </View>
+
+            {/* Médecins de la spécialité sélectionnée */}
+            {selectedSpecialty && (
+              <View style={styles.section}>
+                <View style={styles.resultsHeader}>
+                  <Text style={styles.sectionTitle}>Médecins disponibles</Text>
+                  <Text style={styles.resultsCount}>{doctors.length} résultats</Text>
+                </View>
+                
+                {loading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                  </View>
+                ) : (
+                  <FlatList
+                    data={doctors}
+                    renderItem={renderDoctor}
+                    keyExtractor={(item) => item.idmedecin}
+                    scrollEnabled={false}
+                    showsVerticalScrollIndicator={false}
+                  />
                 )}
-              >
-                <Ionicons
-                  name={specialty.icon as any}
-                  size={24}
-                  color={selectedSpecialty === specialty.id ? 'white' : '#007AFF'}
+              </View>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Maux */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Choisir un mal</Text>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                </View>
+              ) : (
+                <FlatList
+                  data={maux}
+                  renderItem={renderMal}
+                  keyExtractor={(item) => item.idmaux}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
                 />
-                <Text
-                  style={[
-                    styles.specialtyName,
-                    selectedSpecialty === specialty.id && styles.specialtyNameSelected
-                  ]}
-                >
-                  {specialty.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+              )}
+            </View>
 
-        {/* Résultats */}
-        <View style={styles.section}>
-          <View style={styles.resultsHeader}>
-            <Text style={styles.sectionTitle}>Médecins disponibles</Text>
-            <Text style={styles.resultsCount}>{doctors.length} résultats</Text>
-          </View>
-          
-          <FlatList
-            data={doctors}
-            renderItem={renderDoctor}
-            keyExtractor={(item) => item.id.toString()}
-            scrollEnabled={false}
-            showsVerticalScrollIndicator={false}
-          />
-        </View>
+            {/* Message pour les maux */}
+            {selectedMal && (
+              <View style={styles.section}>
+                <View style={styles.infoBox}>
+                  <Ionicons name="information-circle-outline" size={24} color="#007AFF" />
+                  <Text style={styles.infoText}>
+                    Sélectionnez un mal pour voir les médecins spécialisés dans ce domaine.
+                  </Text>
+                </View>
+              </View>
+            )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -237,9 +362,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
   },
-  filtersContainer: {
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    marginTop: 8,
+    paddingHorizontal: 16,
+  },
+  tab: {
+    flex: 1,
     paddingVertical: 16,
-    paddingLeft: 16,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  activeTab: {
+    borderBottomColor: '#007AFF',
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#8E8E93',
+  },
+  activeTabText: {
+    color: '#007AFF',
+  },
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F8FF',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+  },
+  infoText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: '#007AFF',
+    flex: 1,
   },
   filterButton: {
     flexDirection: 'row',

@@ -1,18 +1,41 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
+import { apiService, Medecin } from '../../../services/api';
 
 export default function PatientHomeScreen() {
   const router = useRouter();
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<Medecin[]>([]);
+
+  const onSearch = useCallback(async (text: string) => {
+    setQuery(text);
+    if (!text || text.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+    try {
+      setLoading(true);
+      const resp = await apiService.getApprovedMedecinsSearch({ q: text.trim(), page: 1, limit: 20 });
+      setResults(resp.data || []);
+    } catch (e) {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const specialties = [
     { id: 1, name: 'Médecine générale', icon: 'medical-outline', color: '#007AFF' },
@@ -41,8 +64,35 @@ export default function PatientHomeScreen() {
               style={styles.searchInput}
               placeholder="Rechercher un médecin ou une spécialité..."
               placeholderTextColor="#6B7280"
+              value={query}
+              onChangeText={onSearch}
             />
           </View>
+          {(loading || results.length > 0) && (
+            <View style={styles.searchResultsBox}>
+              {loading ? (
+                <ActivityIndicator size="small" color="#007AFF" />
+              ) : (
+                <FlatList
+                  data={results}
+                  keyExtractor={(item) => item.idmedecin}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.resultItem}
+                      onPress={() => router.push({ pathname: '/(patient)/screens/doctor-detail', params: { doctorId: item.idmedecin } } as any)}
+                    >
+                      <Ionicons name="person-circle-outline" size={22} color="#8E8E93" />
+                      <View style={{ marginLeft: 8, flex: 1 }}>
+                        <Text style={styles.resultName}>{item.prenom} {item.nom}</Text>
+                        <Text style={styles.resultSubtitle}>{item.specialites?.map(s => s.nom).join(', ') || 'Médecin'}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+                    </TouchableOpacity>
+                  )}
+                />
+              )}
+            </View>
+          )}
         </View>
 
         {/* Entrées rapides: Spécialité / Maux */}
@@ -160,6 +210,28 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  searchResultsBox: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginTop: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  resultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  resultName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  resultSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   searchInput: {
     flex: 1,

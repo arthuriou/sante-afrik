@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { apiService } from '../../../services/api';
+import { API_BASE_URL, apiService } from '../../../services/api';
 
 export default function PatientLoginScreen() {
   const router = useRouter();
@@ -31,6 +31,9 @@ export default function PatientLoginScreen() {
 
     setLoading(true);
     try {
+      if (__DEV__) {
+        console.log('🔑 Login Patient → API_BASE_URL:', API_BASE_URL);
+      }
       const response = await apiService.login(email, password);
 
       // Stocker le token et les informations utilisateur

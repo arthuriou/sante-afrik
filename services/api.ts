@@ -1,7 +1,50 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosError } from 'axios';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://10.0.2.2:3000';
+
+// Détermination robuste de l'URL de base API selon l'environnement (Expo Go, émulateur, web)
+function resolveApiBaseUrl(): string {
+  // 1) Priorité à la variable d'env
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
+    return envUrl.trim().replace(/\/$/, '');
+  }
+
+  // 1.bis) Clé expo.extra.apiUrl depuis app.json
+  const extraApiUrl = (Constants as any)?.expoConfig?.extra?.apiUrl || (Constants as any)?.manifest?.extra?.apiUrl;
+  if (extraApiUrl && typeof extraApiUrl === 'string' && extraApiUrl.trim().length > 0) {
+    return extraApiUrl.trim().replace(/\/$/, '');
+  }
+
+  // 2) Web: utiliser l'origine du site si le backend est servi sur le même host:port
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location) {
+    return window.location.origin.replace(/\/$/, '');
+  }
+
+  // 3) Expo Go / appareil réel: essayer de déduire l'IP LAN depuis hostUri
+  //    ex: 192.168.x.x:19000 → on réutilise l'IP et on force port 3000
+  const hostUri = (Constants as any)?.expoConfig?.hostUri || (Constants as any)?.manifest2?.extra?.expoClient?.hostUri || (Constants as any)?.manifest?.hostUri;
+  if (hostUri && typeof hostUri === 'string') {
+    const hostname = hostUri.split(':')[0];
+    if (hostname && /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      return `http://${hostname}:3000`;
+    }
+  }
+
+  // 4) Android émulateur par défaut
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3000';
+  }
+
+  // 5) iOS simulateur/dernier recours: localhost
+  return 'http://localhost:3000';
+}
+
+
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 // Types de base
 export interface User {
@@ -32,6 +75,9 @@ export interface Patient {
 
 export interface Medecin {
   idmedecin: string;
+  nom: string;
+  prenom: string;
+  email: string;
   numordre: string;
   experience: number;
   biographie: string;
@@ -44,6 +90,13 @@ export interface Specialite {
   idspecialite: string;
   nom: string;
   description: string;
+}
+
+export interface Maux {
+  idmaux: string;
+  nom: string;
+  description: string;
+  categorie: string;
 }
 
 export interface Cabinet {
@@ -90,6 +143,12 @@ class ApiService {
       if (this.token) {
         config.headers = config.headers || {};
         config.headers.Authorization = `Bearer ${this.token}`;
+      }
+      // Log de debug pour confirmer l'URL complète appelée
+      if (__DEV__) {
+        // @ts-ignore
+        const fullUrl = `${this.client.defaults.baseURL}${config.url}`;
+        console.log('🌐 API Request →', config.method?.toUpperCase(), fullUrl);
       }
       return config;
     });
@@ -289,12 +348,16 @@ class ApiService {
     limit?: number;
     search?: string;
     specialite?: string;
+    cabinetId?: string;
+    onlyApproved?: boolean;
   }) {
     const query = new URLSearchParams();
     if (params?.page) query.append('page', params.page.toString());
     if (params?.limit) query.append('limit', params.limit.toString());
     if (params?.search) query.append('search', params.search);
     if (params?.specialite) query.append('specialite', params.specialite);
+    if (params?.cabinetId) query.append('cabinetId', params.cabinetId);
+    if (typeof params?.onlyApproved === 'boolean') query.append('onlyApproved', String(params.onlyApproved));
 
     return this.request<{ message: string; data: Medecin[] }>(
       `/api/auth/medecins?${query.toString()}`
@@ -305,6 +368,24 @@ class ApiService {
     return this.request<{ message: string; data: User }>(
       `/api/auth/user/${userId}`
     );
+  }
+
+  // Recherche publique de médecins APPROVED
+  async getApprovedMedecinsSearch(params?: {
+    page?: number;
+    limit?: number;
+    q?: string; // nom/prenom/email
+    specialiteId?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    if (params?.q) query.append('q', params.q);
+    if (params?.specialiteId) query.append('specialiteId', params.specialiteId);
+
+    const qs = query.toString();
+    const url = qs ? `/api/auth/medecins/search?${qs}` : '/api/auth/medecins/search';
+    return this.request<{ message: string; data: Medecin[] }>(url);
   }
 
   // Rendez-vous
@@ -377,6 +458,28 @@ class ApiService {
     return this.request<{ message: string; data: Specialite[] }>(
       '/api/specialites/specialites'
     );
+  }
+
+  async getMaux() {
+    return this.request<{ message: string; data: any[] }>(
+      '/api/specialites/maux'
+    );
+  }
+
+  async getMedecinsBySpecialiteId(
+    specialiteId: string,
+    params?: { q?: string; page?: number; limit?: number; cabinet_id?: string }
+  ) {
+    const query = new URLSearchParams();
+    if (params?.q) query.append('q', params.q);
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    if (params?.cabinet_id) query.append('cabinet_id', params.cabinet_id);
+    const qs = query.toString();
+    const url = qs
+      ? `/api/specialites/specialites/${specialiteId}/medecins?${qs}`
+      : `/api/specialites/specialites/${specialiteId}/medecins`;
+    return this.request<{ message: string; data: Medecin[] }>(url);
   }
 
   // Cabinets
