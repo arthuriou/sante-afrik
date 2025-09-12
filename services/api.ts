@@ -132,6 +132,9 @@ export interface Creneau {
 // Service API générique
 class ApiService {
   private token: string | null = null;
+  private refreshTokenValue: string | null = null;
+  private isRefreshing = false;
+  private pendingRequests: Array<(token: string | null) => void> = [];
   private client = axios.create({
     baseURL: API_BASE_URL,
     timeout: 15000,
@@ -152,10 +155,103 @@ class ApiService {
       }
       return config;
     });
+
+    // Intercepteur de réponse pour gérer 401 et rafraîchir le token
+    this.client.interceptors.response.use(
+      (res) => res,
+      async (error) => {
+        const originalRequest: any = error.config;
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          try {
+            const newToken = await this.performTokenRefresh();
+            if (newToken) {
+              originalRequest.headers = originalRequest.headers || {};
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            }
+            return this.client(originalRequest);
+          } catch (e) {
+            // Échec de refresh → déconnexion silencieuse
+            await this.clearSession();
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
   }
 
   setToken(token: string) {
     this.token = token;
+  }
+
+  private async setRefreshToken(refreshToken: string | null) {
+    this.refreshTokenValue = refreshToken;
+    if (refreshToken) {
+      await AsyncStorage.setItem('refreshToken', refreshToken);
+    } else {
+      await AsyncStorage.removeItem('refreshToken');
+    }
+  }
+
+  private async ensureCachedTokens() {
+    if (!this.token) {
+      const storedToken = await AsyncStorage.getItem('userToken');
+      if (storedToken) this.setToken(storedToken);
+    }
+    if (!this.refreshTokenValue) {
+      const storedRefresh = await AsyncStorage.getItem('refreshToken');
+      if (storedRefresh) this.refreshTokenValue = storedRefresh;
+    }
+  }
+
+  private async performTokenRefresh(): Promise<string | null> {
+    // Éviter plusieurs refresh en parallèle
+    await this.ensureCachedTokens();
+    if (!this.refreshTokenValue) return null;
+    if (this.isRefreshing) {
+      return new Promise((resolve) => {
+        this.pendingRequests.push((token) => resolve(token));
+      });
+    }
+    this.isRefreshing = true;
+    try {
+      const resp = await this.client.post<{ message: string; data: { token: string; refreshToken?: string } }>(
+        '/api/auth/refresh',
+        { token: this.refreshTokenValue }
+      );
+      const newToken = resp.data?.data?.token;
+      const newRefresh = resp.data?.data?.refreshToken;
+      if (newToken) {
+        this.setToken(newToken);
+        await AsyncStorage.setItem('userToken', newToken);
+      }
+      if (newRefresh) {
+        await this.setRefreshToken(newRefresh);
+      }
+      this.pendingRequests.forEach((cb) => cb(this.token));
+      this.pendingRequests = [];
+      return this.token;
+    } finally {
+      this.isRefreshing = false;
+    }
+  }
+
+  async clearSession() {
+    this.token = null;
+    this.refreshTokenValue = null;
+    await AsyncStorage.multiRemove(['userToken', 'refreshToken', 'userData', 'userRole']);
+  }
+
+  // Initialiser la session au démarrage de l'app
+  async initializeSession(): Promise<void> {
+    await this.ensureCachedTokens();
+    if (!this.token && this.refreshTokenValue) {
+      try {
+        await this.performTokenRefresh();
+      } catch {
+        // ignore, restera déconnecté
+      }
+    }
   }
 
   private async request<T>(endpoint: string, options: {
@@ -235,7 +331,7 @@ class ApiService {
   async login(email: string, motdepasse: string) {
     const response = await this.request<{
       message: string;
-      data: { user: User; token: string };
+      data: { user: User; token: string; refreshToken?: string };
     }>('/api/auth/login', {
       method: 'POST',
       body: { email, motdepasse },
@@ -243,6 +339,10 @@ class ApiService {
 
     if (response.data.token) {
       this.setToken(response.data.token);
+      await AsyncStorage.setItem('userToken', response.data.token);
+    }
+    if (response.data.refreshToken) {
+      await this.setRefreshToken(response.data.refreshToken);
     }
 
     return response;
@@ -427,6 +527,18 @@ class ApiService {
   async cancelRendezVous(rendezVousId: string) {
     return this.request(`/api/rendezvous/${rendezVousId}/annuler`, {
       method: 'PUT',
+    });
+  }
+
+  async updateRendezVous(rendezVousId: string, data: {
+    dateheure?: string;
+    duree?: number;
+    motif?: string;
+    creneau_id?: string;
+  }) {
+    return this.request(`/api/rendezvous/${rendezVousId}`, {
+      method: 'PUT',
+      body: data,
     });
   }
 

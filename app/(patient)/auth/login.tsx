@@ -3,16 +3,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { API_BASE_URL, apiService } from '../../../services/api';
 
@@ -38,6 +38,9 @@ export default function PatientLoginScreen() {
 
       // Stocker le token et les informations utilisateur
       await AsyncStorage.setItem('userToken', response.data.token);
+      if ((response as any)?.data?.refreshToken) {
+        await AsyncStorage.setItem('refreshToken', (response as any).data.refreshToken);
+      }
       await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
       await AsyncStorage.setItem('userRole', 'PATIENT');
 

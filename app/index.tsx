@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     SafeAreaView,
     StyleSheet,
@@ -8,9 +9,28 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { apiService } from '../services/api';
 
 export default function WelcomeScreen() {
   const router = useRouter();
+
+  useEffect(() => {
+    const bootstrap = async () => {
+      try {
+        await apiService.initializeSession();
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
+          const role = await AsyncStorage.getItem('userRole');
+          if (role === 'MEDECIN') {
+            router.replace('/(medecin)/screens/dashboard');
+          } else {
+            router.replace('/(patient)/screens/home');
+          }
+        }
+      } catch {}
+    };
+    bootstrap();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>

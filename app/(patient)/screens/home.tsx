@@ -2,15 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { apiService, Medecin } from '../../../services/api';
 
@@ -73,13 +72,12 @@ export default function PatientHomeScreen() {
               {loading ? (
                 <ActivityIndicator size="small" color="#007AFF" />
               ) : (
-                <FlatList
-                  data={results}
-                  keyExtractor={(item) => item.idmedecin}
-                  renderItem={({ item }) => (
+                <View>
+                  {results.map((item) => (
                     <TouchableOpacity
+                      key={item.idmedecin}
                       style={styles.resultItem}
-                      onPress={() => router.push({ pathname: '/(patient)/screens/doctor-detail', params: { doctorId: item.idmedecin } } as any)}
+                      onPress={() => router.push({ pathname: '/(patient)/screens/doctor-detail', params: { doctorId: item.idmedecin, doctor: JSON.stringify(item) } } as any)}
                     >
                       <Ionicons name="person-circle-outline" size={22} color="#8E8E93" />
                       <View style={{ marginLeft: 8, flex: 1 }}>
@@ -88,8 +86,8 @@ export default function PatientHomeScreen() {
                       </View>
                       <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
                     </TouchableOpacity>
-                  )}
-                />
+                  ))}
+                </View>
               )}
             </View>
           )}

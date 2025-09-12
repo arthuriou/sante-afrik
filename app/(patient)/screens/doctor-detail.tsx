@@ -1,58 +1,57 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Dimensions,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
+import { apiService, Medecin } from '../../../services/api';
 
 const { width } = Dimensions.get('window');
 
 export default function PatientDoctorDetailScreen() {
   const router = useRouter();
-  const [selectedTime, setSelectedTime] = useState<number | null>(null);
+  const params = useLocalSearchParams<{ doctorId?: string; doctor?: string }>();
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [creneaux, setCreneaux] = useState<Array<{ idcreneau: string; debut: string; fin: string; disponible: boolean }>>([]);
+  const [selectedStart, setSelectedStart] = useState<string | null>(null);
+  const [selectedEnd, setSelectedEnd] = useState<string | null>(null);
 
-  const doctor = {
-    id: 1,
-    name: 'Dr. Martin Dubois',
-    specialty: 'Médecine générale',
-    rating: 4.8,
-    reviews: 127,
-    experience: '15 ans d\'expérience',
-    price: '25€',
-    nextAvailable: 'Aujourd\'hui 14h30',
-    verified: true,
-    description: 'Médecin généraliste expérimenté, spécialisé dans la médecine préventive et le suivi des patients chroniques.',
-    address: '15 rue de Rivoli, 75001 Paris',
-    phone: '+33 1 42 36 78 90',
-    languages: ['Français', 'Anglais'],
-    education: [
-      'Diplôme de Médecine - Université Paris Descartes',
-      'Spécialisation en Médecine Générale - Hôpital Saint-Antoine',
-    ],
-    certifications: [
-      'Certification en Diabétologie',
-      'Formation en Télémédecine',
-    ],
-  };
+  const doctorFromParam: Medecin | null = useMemo(() => {
+    try {
+      return params.doctor ? JSON.parse(params.doctor as string) : null;
+    } catch {
+      return null;
+    }
+  }, [params.doctor]);
 
-  const timeSlots = [
-    { id: 1, time: '09h00', available: true },
-    { id: 2, time: '09h30', available: false },
-    { id: 3, time: '10h00', available: true },
-    { id: 4, time: '10h30', available: true },
-    { id: 5, time: '11h00', available: false },
-    { id: 6, time: '11h30', available: true },
-    { id: 7, time: '14h00', available: true },
-    { id: 8, time: '14h30', available: true },
-    { id: 9, time: '15h00', available: false },
-    { id: 10, time: '15h30', available: true },
-  ];
+  const doctorId = (params.doctorId as string) || doctorFromParam?.idmedecin;
+
+  useEffect(() => {
+    const loadSlots = async () => {
+      if (!doctorId) return;
+      try {
+        setLoading(true);
+        const today = new Date();
+        const dateDebut = today.toISOString().slice(0, 10);
+        const in7 = new Date(today.getTime() + 7 * 86400000);
+        const dateFin = in7.toISOString().slice(0, 10);
+        const resp = await apiService.getCreneauxDisponibles(doctorId, dateDebut, dateFin);
+        setCreneaux(resp.data || []);
+      } catch (e) {
+        setCreneaux([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSlots();
+  }, [doctorId]);
 
   const reviews = [
     {
@@ -79,10 +78,8 @@ export default function PatientDoctorDetailScreen() {
   ];
 
   const handleBookAppointment = () => {
-    if (selectedTime) {
-      // Ici, vous navigueriez vers l'écran de réservation
-      router.push({ pathname: '/(patient)/screens/appointments' } as any);
-    }
+    if (!selectedTime || !doctorId || !selectedStart) return;
+    router.push({ pathname: '/(patient)/screens/appointment-motif', params: { doctorId, creneauId: selectedTime, start: selectedStart, end: selectedEnd || '' } } as any);
   };
 
   return (
@@ -94,23 +91,26 @@ export default function PatientDoctorDetailScreen() {
             <View style={styles.doctorImage}>
               <Ionicons name="person" size={60} color="#8E8E93" />
             </View>
-            {doctor.verified && (
+            {doctorFromParam?.statut === 'APPROVED' && (
               <View style={styles.verifiedBadge}>
                 <Ionicons name="checkmark" size={16} color="white" />
               </View>
             )}
           </View>
           
-          <Text style={styles.doctorName}>{doctor.name}</Text>
-          <Text style={styles.doctorSpecialty}>{doctor.specialty}</Text>
+          <Text style={styles.doctorName}>{doctorFromParam ? `${doctorFromParam.prenom} ${doctorFromParam.nom}` : 'Médecin'}</Text>
+          <Text style={styles.doctorSpecialty}>{doctorFromParam?.specialites?.map(s => s.nom).join(', ') || 'Spécialité'}</Text>
           
           <View style={styles.ratingContainer}>
             <Ionicons name="star" size={16} color="#FFD700" />
-            <Text style={styles.rating}>{doctor.rating}</Text>
-            <Text style={styles.reviews}>({doctor.reviews} avis)</Text>
+            {/* Placeholders de note/avis si non fournis par l'API */}
+            <Text style={styles.rating}>4.8</Text>
+            <Text style={styles.reviews}>(127 avis)</Text>
           </View>
           
-          <Text style={styles.experience}>{doctor.experience}</Text>
+          {doctorFromParam?.experience != null && (
+            <Text style={styles.experience}>{doctorFromParam.experience} ans d'expérience</Text>
+          )}
         </View>
 
         {/* Informations de contact */}
@@ -119,15 +119,15 @@ export default function PatientDoctorDetailScreen() {
           <View style={styles.contactInfo}>
             <View style={styles.contactItem}>
               <Ionicons name="location-outline" size={20} color="#007AFF" />
-              <Text style={styles.contactText}>{doctor.address}</Text>
+              <Text style={styles.contactText}>{doctorFromParam?.cabinet?.adresse || 'Adresse indisponible'}</Text>
             </View>
             <View style={styles.contactItem}>
               <Ionicons name="call-outline" size={20} color="#007AFF" />
-              <Text style={styles.contactText}>{doctor.phone}</Text>
+              <Text style={styles.contactText}>{doctorFromParam?.email || 'Email indisponible'}</Text>
             </View>
             <View style={styles.contactItem}>
               <Ionicons name="language-outline" size={20} color="#007AFF" />
-              <Text style={styles.contactText}>{doctor.languages.join(', ')}</Text>
+              <Text style={styles.contactText}>{doctorFromParam?.cabinet?.nom || 'Cabinet'}</Text>
             </View>
           </View>
         </View>
@@ -135,57 +135,62 @@ export default function PatientDoctorDetailScreen() {
         {/* Description */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>À propos</Text>
-          <Text style={styles.description}>{doctor.description}</Text>
+          {doctorFromParam?.biographie && (
+            <Text style={styles.description}>{doctorFromParam.biographie}</Text>
+          )}
         </View>
 
         {/* Formation */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Formation</Text>
-          {doctor.education.map((edu, index) => (
-            <View key={index} style={styles.educationItem}>
-              <Ionicons name="school-outline" size={16} color="#8E8E93" />
-              <Text style={styles.educationText}>{edu}</Text>
-            </View>
-          ))}
+          {/* À remplir si l'API fournit la formation */}
         </View>
 
         {/* Certifications */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Certifications</Text>
-          {doctor.certifications.map((cert, index) => (
-            <View key={index} style={styles.certificationItem}>
-              <Ionicons name="ribbon-outline" size={16} color="#8E8E93" />
-              <Text style={styles.certificationText}>{cert}</Text>
-            </View>
-          ))}
+          {/* À remplir si l'API fournit les certifications */}
         </View>
 
         {/* Créneaux disponibles */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Créneaux disponibles</Text>
           <View style={styles.timeSlotsGrid}>
-            {timeSlots.map((slot) => (
-              <TouchableOpacity
-                key={slot.id}
-                style={[
-                  styles.timeSlot,
-                  !slot.available && styles.timeSlotUnavailable,
-                  selectedTime === slot.id && styles.timeSlotSelected,
-                ]}
-                onPress={() => slot.available && setSelectedTime(slot.id)}
-                disabled={!slot.available}
-              >
-                <Text
-                  style={[
-                    styles.timeSlotText,
-                    !slot.available && styles.timeSlotTextUnavailable,
-                    selectedTime === slot.id && styles.timeSlotTextSelected,
-                  ]}
-                >
-                  {slot.time}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {loading ? (
+              <Text style={{ color: '#8E8E93' }}>Chargement...</Text>
+            ) : (
+              creneaux.map((slot) => {
+                const timeLabel = new Date(slot.debut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const isSelected = selectedTime === slot.idcreneau;
+                return (
+                  <TouchableOpacity
+                    key={slot.idcreneau}
+                    style={[
+                      styles.timeSlot,
+                      !slot.disponible && styles.timeSlotUnavailable,
+                      isSelected && styles.timeSlotSelected,
+                    ]}
+                    onPress={() => {
+                      if (!slot.disponible) return;
+                      setSelectedTime(slot.idcreneau);
+                      setSelectedStart(slot.debut);
+                      setSelectedEnd(slot.fin);
+                    }}
+                    disabled={!slot.disponible}
+                  >
+                    <Text
+                      style={[
+                        styles.timeSlotText,
+                        !slot.disponible && styles.timeSlotTextUnavailable,
+                        isSelected && styles.timeSlotTextSelected,
+                      ]}
+                    >
+                      {timeLabel}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </View>
         </View>
 
@@ -217,7 +222,7 @@ export default function PatientDoctorDetailScreen() {
         <View style={styles.bookingContainer}>
           <View style={styles.priceContainer}>
             <Text style={styles.priceLabel}>Prix de la consultation</Text>
-            <Text style={styles.price}>{doctor.price}</Text>
+            <Text style={styles.price}>—</Text>
           </View>
           
           <TouchableOpacity
