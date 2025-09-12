@@ -3,12 +3,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     FlatList,
+    Platform,
     SafeAreaView,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { apiService, RendezVous } from '../../../services/api';
 
@@ -36,74 +38,108 @@ export default function PatientAppointmentsScreen() {
     loadAppointments();
   }, []);
 
-  const tabs = [
-    { id: 'upcoming', label: 'À venir', count: allAppointments.filter(a => a.statut !== 'TERMINE' && a.statut !== 'ANNULE').length },
-    { id: 'past', label: 'Passés', count: allAppointments.filter(a => a.statut === 'TERMINE' || a.statut === 'ANNULE').length },
-  ];
+  const upcomingAppointments = allAppointments.filter(a => a.statut !== 'TERMINE' && a.statut !== 'ANNULE');
+  const pastAppointments = allAppointments.filter(a => a.statut === 'TERMINE' || a.statut === 'ANNULE');
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed':
+      case 'CONFIRME':
         return '#34C759';
-      case 'pending':
+      case 'EN_ATTENTE':
         return '#FF9500';
-      case 'cancelled':
+      case 'ANNULE':
         return '#FF3B30';
-      case 'completed':
+      case 'TERMINE':
         return '#8E8E93';
       default:
         return '#8E8E93';
     }
   };
 
-  const getStatusText = (status) => {
+  const getStatusText = (status: string) => {
     switch (status) {
-      case 'confirmed':
+      case 'CONFIRME':
         return 'Confirmé';
-      case 'pending':
+      case 'EN_ATTENTE':
         return 'En attente';
-      case 'cancelled':
+      case 'ANNULE':
         return 'Annulé';
-      case 'completed':
+      case 'TERMINE':
         return 'Terminé';
       default:
         return status;
     }
   };
 
-  const renderAppointment = ({ item }: { item: RendezVous }) => (
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return {
+      date: date.toLocaleDateString('fr-FR', { 
+        weekday: 'long', 
+        day: 'numeric', 
+        month: 'long' 
+      }),
+      time: date.toLocaleTimeString('fr-FR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      })
+    };
+  };
+
+  const renderAppointment = ({ item }: { item: RendezVous }) => {
+    const { date, time } = formatDate(item.dateheure);
+    const statusColor = getStatusColor(item.statut);
+    
+    return (
     <View style={styles.appointmentCard}>
       <View style={styles.appointmentHeader}>
         <View style={styles.doctorInfo}>
-          <Text style={styles.doctorName}>{item.medecin?.prenom} {item.medecin?.nom}</Text>
-          <Text style={styles.doctorSpecialty}>{item.medecin?.specialites?.map(s => s.nom).join(', ')}</Text>
+            <Text style={styles.doctorName}>
+              Dr. {item.medecin?.prenom} {item.medecin?.nom}
+            </Text>
+            <Text style={styles.doctorSpecialty}>
+              {item.medecin?.specialites?.map(s => s.nom).join(', ')}
+            </Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.statut) + '20' }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(item.statut) }]}>
-            {getStatusText(item.statut)}
+          <View style={[styles.statusBadge, { backgroundColor: statusColor + '15' }]}>
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {getStatusText(item.statut)}
           </Text>
         </View>
       </View>
 
       <View style={styles.appointmentDetails}>
-        <View style={styles.detailRow}>
-          <Ionicons name="calendar-outline" size={16} color="#8E8E93" />
-          <Text style={styles.detailText}>{new Date(item.dateheure).toLocaleString()}</Text>
+          <View style={styles.dateTimeRow}>
+            <View style={styles.dateTimeItem}>
+              <Ionicons name="calendar-outline" size={16} color="#007AFF" />
+              <Text style={styles.dateTimeText}>{date}</Text>
+            </View>
+            <View style={styles.dateTimeItem}>
+              <Ionicons name="time-outline" size={16} color="#007AFF" />
+              <Text style={styles.dateTimeText}>{time}</Text>
+            </View>
         </View>
         
-        <View style={styles.detailRow}>
+          {item.medecin?.cabinet && (
+            <View style={styles.locationRow}>
           <Ionicons name="location-outline" size={16} color="#8E8E93" />
-          <Text style={styles.detailText}>{item.medecin?.cabinet?.nom || '—'}</Text>
+              <View style={styles.locationInfo}>
+                <Text style={styles.cabinetName}>{item.medecin.cabinet.nom}</Text>
+                <Text style={styles.cabinetAddress}>{item.medecin.cabinet.adresse}</Text>
+              </View>
         </View>
-        
-        <View style={styles.detailRow}>
-          <Ionicons name="map-outline" size={16} color="#8E8E93" />
-          <Text style={styles.detailText}>{item.medecin?.cabinet?.adresse || '—'}</Text>
-        </View>
+          )}
+          
+          {item.motif && (
+            <View style={styles.motifRow}>
+              <Ionicons name="document-text-outline" size={16} color="#8E8E93" />
+              <Text style={styles.motifText}>{item.motif}</Text>
+            </View>
+          )}
       </View>
 
       <View style={styles.appointmentActions}>
-        {item.statut === 'CONFIRME' && (
+          {item.statut === 'CONFIRME' && (
           <>
             <TouchableOpacity style={styles.actionButton}>
               <Ionicons name="videocam-outline" size={16} color="#007AFF" />
@@ -120,92 +156,91 @@ export default function PatientAppointmentsScreen() {
           </>
         )}
         
-        {item.statut === 'TERMINE' && (
+          {item.statut === 'TERMINE' && (
           <TouchableOpacity style={styles.actionButton}>
             <Ionicons name="document-text-outline" size={16} color="#007AFF" />
             <Text style={styles.actionButtonText}>Résumé</Text>
           </TouchableOpacity>
         )}
         
-        <TouchableOpacity style={[styles.actionButton, styles.cancelButton]} onPress={async () => {
-          try {
-            await apiService.cancelRendezVous(item.idrendezvous);
-            await loadAppointments();
-          } catch {}
-        }}>
+          {(item.statut === 'CONFIRME' || item.statut === 'EN_ATTENTE') && (
+            <TouchableOpacity 
+              style={styles.cancelButton} 
+              onPress={async () => {
+                try {
+                  await apiService.cancelRendezVous(item.idrendezvous);
+                  await loadAppointments();
+                } catch {}
+              }}
+            >
           <Ionicons name="close-outline" size={16} color="#FF3B30" />
-          <Text style={[styles.actionButtonText, styles.cancelButtonText]}>Annuler</Text>
+              <Text style={styles.cancelButtonText}>Annuler</Text>
         </TouchableOpacity>
-      </View>
+          )}
+        </View>
     </View>
   );
+  };
 
-  const currentAppointments = selectedTab === 'upcoming'
-    ? allAppointments.filter(a => a.statut !== 'TERMINE' && a.statut !== 'ANNULE')
-    : allAppointments.filter(a => a.statut === 'TERMINE' || a.statut === 'ANNULE');
+  const currentAppointments = selectedTab === 'upcoming' ? upcomingAppointments : pastAppointments;
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Entrée de flow RDV */}
-      <View style={styles.entryCard}>
-        <Text style={styles.entryTitle}>Prendre un rendez-vous</Text>
-        <Text style={styles.entrySubtitle}>Recherchez par spécialité ou par mal/symptôme</Text>
-        <View style={styles.entryRow}>
-          <TouchableOpacity style={[styles.entryButton, { backgroundColor: '#007AFF' }]} onPress={() => router.push('/(patient)/screens/search')}>
-            <Ionicons name="medkit-outline" size={16} color="#FFFFFF" />
-            <Text style={styles.entryButtonText}>Par spécialité</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.entryButton, { backgroundColor: '#10B981' }]} onPress={() => router.push('/(patient)/screens/search')}>
-            <Ionicons name="pulse-outline" size={16} color="#FFFFFF" />
-            <Text style={styles.entryButtonText}>Par mal</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Mes rendez-vous</Text>
       </View>
+
       {/* Onglets */}
       <View style={styles.tabsContainer}>
-        {tabs.map((tab) => (
           <TouchableOpacity
-            key={tab.id}
-            style={[
-              styles.tab,
-              selectedTab === tab.id && styles.tabActive
-            ]}
-            onPress={() => setSelectedTab(tab.id)}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                selectedTab === tab.id && styles.tabTextActive
-              ]}
-            >
-              {tab.label}
+          style={[styles.tab, selectedTab === 'upcoming' && styles.tabActive]}
+          onPress={() => setSelectedTab('upcoming')}
+        >
+          <Text style={[styles.tabText, selectedTab === 'upcoming' && styles.tabTextActive]}>
+            À venir
+          </Text>
+          {upcomingAppointments.length > 0 && (
+            <View style={[styles.tabBadge, selectedTab === 'upcoming' && styles.tabBadgeActive]}>
+              <Text style={[styles.tabBadgeText, selectedTab === 'upcoming' && styles.tabBadgeTextActive]}>
+                {upcomingAppointments.length}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.tab, selectedTab === 'past' && styles.tabActive]}
+          onPress={() => setSelectedTab('past')}
+        >
+          <Text style={[styles.tabText, selectedTab === 'past' && styles.tabTextActive]}>
+            Passés
             </Text>
-            {tab.count > 0 && (
-              <View style={[
-                styles.tabBadge,
-                selectedTab === tab.id && styles.tabBadgeActive
-              ]}>
-                <Text style={[
-                  styles.tabBadgeText,
-                  selectedTab === tab.id && styles.tabBadgeTextActive
-                ]}>
-                  {tab.count}
+          {pastAppointments.length > 0 && (
+            <View style={[styles.tabBadge, selectedTab === 'past' && styles.tabBadgeActive]}>
+              <Text style={[styles.tabBadgeText, selectedTab === 'past' && styles.tabBadgeTextActive]}>
+                {pastAppointments.length}
                 </Text>
               </View>
             )}
           </TouchableOpacity>
-        ))}
       </View>
 
       {/* Contenu */}
       <View style={styles.content}>
-        {currentAppointments.length > 0 ? (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Chargement des rendez-vous...</Text>
+          </View>
+        ) : currentAppointments.length > 0 ? (
           <FlatList
             data={currentAppointments}
             renderItem={renderAppointment}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => item.idrendezvous}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.appointmentsList}
+            ListFooterComponent={<View style={{ height: 48 }} />}
           />
         ) : (
           <View style={styles.emptyState}>
@@ -237,24 +272,37 @@ export default function PatientAppointmentsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F2F2F7', // iOS System Gray 6
   },
+  
+  // Header
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 34,
+    fontWeight: '700',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  
+  // Tabs
   tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: 'white',
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 24,
+    borderRadius: 16,
+    padding: 4,
+    marginBottom: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  entryCard: { backgroundColor: 'white', margin: 16, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#E5E7EB' },
-  entryTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  entrySubtitle: { fontSize: 13, color: '#6B7280', marginBottom: 12 },
-  entryRow: { flexDirection: 'row', gap: 10 },
-  entryButton: { flexDirection: 'row', gap: 6, alignItems: 'center', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, flex: 1, justifyContent: 'center' },
-  entryButtonText: { color: '#FFFFFF', fontWeight: '600' },
-  headerCtaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  bookNow: { flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: '#007AFF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  bookNowText: { color: '#FFFFFF', fontWeight: '600' },
   tab: {
     flex: 1,
     flexDirection: 'row',
@@ -262,19 +310,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    marginRight: 8,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   tabActive: {
     backgroundColor: '#007AFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
   tabText: {
     fontSize: 16,
     fontWeight: '500',
     color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   tabTextActive: {
-    color: 'white',
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   tabBadge: {
     backgroundColor: '#8E8E93',
@@ -284,99 +338,182 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   tabBadgeActive: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
   },
   tabBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'white',
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   tabBadgeTextActive: {
     color: '#007AFF',
   },
+  
+  // Content
   content: {
     flex: 1,
   },
-  appointmentsList: {
-    padding: 16,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
   },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  appointmentsList: {
+    paddingHorizontal: 24,
+    paddingBottom: 120,
+  },
+  
+  // Appointment Card
   appointmentCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20, // Gros coins arrondis iOS
+    padding: 24,
+    marginBottom: 16,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   appointmentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 20,
   },
   doctorInfo: {
     flex: 1,
   },
   doctorName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#000',
-    marginBottom: 2,
+    color: '#000000',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   doctorSpecialty: {
     fontSize: 14,
     color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
+  
+  // Appointment Details
   appointmentDetails: {
+    marginBottom: 20,
+  },
+  dateTimeRow: {
+    flexDirection: 'row',
     marginBottom: 16,
   },
-  detailRow: {
+  dateTimeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    backgroundColor: '#007AFF15',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 12,
   },
-  detailText: {
-    marginLeft: 8,
+  dateTimeText: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#007AFF',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  locationInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  cabinetName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#000000',
+    marginBottom: 2,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  cabinetAddress: {
     fontSize: 14,
     color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
+  motifRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  motifText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: '#8E8E93',
+    flex: 1,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  // Actions
   appointmentActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    marginHorizontal: -6,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F2F2F7',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 6,
+    marginBottom: 12,
   },
   actionButtonText: {
-    marginLeft: 4,
-    fontSize: 12,
+    marginLeft: 6,
+    fontSize: 14,
     fontWeight: '500',
     color: '#007AFF',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   cancelButton: {
-    backgroundColor: '#FF3B3020',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF3B3015',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 6,
+    marginBottom: 12,
   },
   cancelButtonText: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '500',
     color: '#FF3B30',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
+  
+  // Empty State
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -384,29 +521,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '600',
-    color: '#000',
+    color: '#000000',
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: 20,
     marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   emptySubtitle: {
     fontSize: 16,
     color: '#8E8E93',
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 24,
+    marginBottom: 32,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   bookButton: {
     backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    borderRadius: 16,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
   },
   bookButtonText: {
-    color: 'white',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 17,
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
 });

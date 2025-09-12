@@ -2,16 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
+import { apiService } from '../../../services/api';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -26,20 +27,16 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      // Ici, vous appelleriez votre API de réinitialisation de mot de passe
-      // const response = await apiService.forgotPassword(email);
+      await apiService.forgotPassword(email);
       
-      // Simulation d'envoi d'email
-      setTimeout(() => {
-        Alert.alert(
-          'Email envoyé',
-          'Un lien de réinitialisation a été envoyé à votre adresse email',
-          [{ text: 'OK', onPress: () => router.back() }]
-        );
-        setLoading(false);
-      }, 2000);
+      Alert.alert(
+        'Email envoyé',
+        'Un lien de réinitialisation a été envoyé à votre adresse email',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } catch (error: any) {
-      Alert.alert('Erreur', error.message);
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue');
+    } finally {
       setLoading(false);
     }
   };

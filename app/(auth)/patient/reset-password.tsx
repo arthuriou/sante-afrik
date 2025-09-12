@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { apiService } from '../../../services/api';
 
 export default function ResetPasswordScreen() {
   const [email, setEmail] = useState('');
@@ -31,38 +32,23 @@ export default function ResetPasswordScreen() {
     setIsLoading(true);
     
     try {
-      // Appel API pour envoyer l'OTP de réinitialisation
-      const response = await fetch('http://localhost:3000/api/auth/send-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-        }),
-      });
+      await apiService.sendOtp(email.trim());
 
-      const data = await response.json();
-
-      if (response.ok) {
-        Alert.alert(
-          'Email envoyé',
-          'Un code de vérification a été envoyé à votre adresse email. Veuillez vérifier votre boîte de réception.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.push({
-                pathname: '/(patient)/auth/verify-otp',
-                params: { email: email.trim() }
-              }),
-            },
-          ]
-        );
-      } else {
-        Alert.alert('Erreur', data.error || 'Erreur lors de l\'envoi de l\'email');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur de connexion. Veuillez réessayer.');
+      Alert.alert(
+        'Email envoyé',
+        'Un code de vérification a été envoyé à votre adresse email. Veuillez vérifier votre boîte de réception.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.push({
+              pathname: '/(auth)/patient/verify-otp',
+              params: { email: email.trim() }
+            }),
+          },
+        ]
+      );
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Erreur de connexion. Veuillez réessayer.');
     } finally {
       setIsLoading(false);
     }

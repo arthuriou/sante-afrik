@@ -2,15 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { apiService, User } from '../../../services/api';
 
@@ -136,31 +136,38 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header iOS-style */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          onPress={() => router.back()} 
+          style={styles.backButton}
+        >
+          <Ionicons name="chevron-back" size={24} color="#007AFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Modifier le profil</Text>
+        <TouchableOpacity 
+          onPress={handleSave} 
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator size="small" color="white" />
+          ) : (
+            <Text style={styles.saveButtonText}>Enregistrer</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
-        {/* En-tête */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.cancelButton}>
-            <Ionicons name="close" size={24} color="#007AFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Modifier le profil</Text>
-          <TouchableOpacity 
-            onPress={handleSave} 
-            style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Text style={styles.saveButtonText}>Enregistrer</Text>
-            )}
-          </TouchableOpacity>
-        </View>
 
         {/* Formulaire */}
         <View style={styles.form}>
           {/* Informations personnelles */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Informations personnelles</Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="person" size={20} color="#007AFF" />
+              <Text style={styles.sectionTitle}>Informations personnelles</Text>
+            </View>
             
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Nom *</Text>
@@ -224,7 +231,10 @@ export default function EditProfileScreen() {
 
           {/* Informations médicales */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Informations médicales</Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="medical" size={20} color="#007AFF" />
+              <Text style={styles.sectionTitle}>Informations médicales</Text>
+            </View>
             
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Adresse</Text>
@@ -312,26 +322,28 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#C6C6C8',
   },
-  cancelButton: {
-    padding: 8,
+  backButton: {
+    padding: 4,
+    marginRight: 8,
   },
   headerTitle: {
-    fontSize: 18,
+    flex: 1,
+    fontSize: 17,
     fontWeight: '600',
     color: '#000',
+    textAlign: 'center',
   },
   saveButton: {
     backgroundColor: '#007AFF',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 16,
     minWidth: 80,
     alignItems: 'center',
   },
@@ -348,15 +360,25 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 16,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1D1D1F',
+    marginLeft: 8,
   },
   inputGroup: {
     marginBottom: 16,
@@ -370,11 +392,12 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: '#E5E5EA',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
-    backgroundColor: 'white',
+    backgroundColor: '#F2F2F7',
+    color: '#1D1D1F',
   },
   textArea: {
     height: 80,
@@ -390,10 +413,17 @@ const styles = StyleSheet.create({
   noteContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#F0F8FF',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: 'white',
+    padding: 16,
+    borderRadius: 16,
     marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#007AFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   noteText: {
     flex: 1,

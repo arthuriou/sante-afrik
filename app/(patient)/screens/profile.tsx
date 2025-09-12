@@ -4,18 +4,19 @@ import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Modal,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { API_BASE_URL, apiService, User } from '../../../services/api';
 
@@ -45,7 +46,6 @@ export default function PatientProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // Recharger le profil à chaque focus pour refléter les dernières modifications
       loadProfile();
     }, [])
   );
@@ -241,7 +241,7 @@ export default function PatientProfileScreen() {
       onPress={() => handleAction(item)}
     >
       <View style={styles.menuItemLeft}>
-        <View style={[styles.menuIcon, { backgroundColor: (item.color || '#007AFF') + '20' }]}>
+        <View style={[styles.menuIcon, { backgroundColor: (item.color || '#007AFF') + '15' }]}>
           <Ionicons
             name={item.icon}
             size={20}
@@ -284,35 +284,100 @@ export default function PatientProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* En-tête du profil */}
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Header du profil */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <Pressable onPress={() => user?.photoprofil && setViewerVisible(true)}>
-              {user?.photoprofil ? (
-                <Image
-                  source={{ uri: user.photoprofil.startsWith('http') ? user.photoprofil : `${API_BASE_URL}${user.photoprofil}` }}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <View style={styles.avatar}>
-                  <Ionicons name="person" size={40} color="#8E8E93" />
-                </View>
-              )}
+            {user?.photoprofil ? (
+              <Image
+                source={{ uri: user.photoprofil.startsWith('http') ? user.photoprofil : `${API_BASE_URL}${user.photoprofil}` }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={styles.avatar}>
+                  <Ionicons name="person" size={100} color="#8E8E93" />
+              </View>
+            )}
             </Pressable>
             <TouchableOpacity style={styles.editAvatarButton} onPress={handlePickAndUploadPhoto}>
               <Ionicons name="camera" size={16} color="white" />
             </TouchableOpacity>
           </View>
+          
+          <Text style={styles.userName}>
+            {user ? `${user.prenom} ${user.nom}` : 'Chargement...'}
+          </Text>
+          <Text style={styles.userEmail}>{user?.email || ''}</Text>
+          
+        </View>
+
+        {/* Informations rapides */}
+        <View style={styles.section}>
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Informations de contact</Text>
+            <View style={styles.contactInfo}>
+              <View style={styles.contactItem}>
+                <View style={styles.contactIcon}>
+            <Ionicons name="call-outline" size={20} color="#007AFF" />
+                </View>
+                <View style={styles.contactDetails}>
+                  <Text style={styles.contactLabel}>Téléphone</Text>
+                  <Text style={styles.contactText}>{user?.telephone || 'Non renseigné'}</Text>
+                </View>
+          </View>
+              
+              <View style={styles.contactItem}>
+                <View style={styles.contactIcon}>
+            <Ionicons name="location-outline" size={20} color="#007AFF" />
+                </View>
+                <View style={styles.contactDetails}>
+                  <Text style={styles.contactLabel}>Adresse</Text>
+                  <Text style={styles.contactText}>
+              {user?.patient?.adresse || 'Non renseigné'}
+            </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Menu */}
+        {menuSections.map((section, sectionIndex) => (
+          <View key={sectionIndex} style={styles.section}>
+            <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <View style={styles.menuItems}>
+                {section.items.map((item, index) => (
+                  <View key={item.id}>
+                    {renderMenuItem(item)}
+                    {index < section.items.length - 1 && <View style={styles.menuDivider} />}
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        ))}
+
+        {/* Version de l'app */}
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>SantéAfrik v1.0.0</Text>
+        </View>
+      </ScrollView>
+
+      {/* Modal de visualisation de photo */}
       <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
         <View style={styles.viewerBackdrop}>
           <View style={styles.viewerHeader}>
             <TouchableOpacity onPress={() => setViewerVisible(false)} style={styles.headerIconBtn}>
-              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.viewerTitle}>Photo de profil</Text>
             <TouchableOpacity onPress={handlePickAndUploadPhoto} style={styles.headerIconBtn}>
-              <Ionicons name="create-outline" size={22} color="#FFFFFF" />
+              <Ionicons name="create-outline" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
           <View style={styles.viewerContainer}>
@@ -328,50 +393,6 @@ export default function PatientProfileScreen() {
           </View>
         </View>
       </Modal>
-          
-          <Text style={styles.userName}>
-            {user ? `${user.prenom} ${user.nom}` : 'Chargement...'}
-          </Text>
-          <Text style={styles.userEmail}>{user?.email || ''}</Text>
-          
-          <TouchableOpacity 
-            style={styles.editProfileButton}
-            onPress={() => router.navigate('/(patient)/modals/edit-profile')}
-          >
-            <Ionicons name="create-outline" size={16} color="#007AFF" />
-            <Text style={styles.editProfileText}>Modifier le profil</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Informations rapides */}
-        <View style={styles.quickInfo}>
-          <View style={styles.infoItem}>
-            <Ionicons name="call-outline" size={20} color="#007AFF" />
-            <Text style={styles.infoText}>{user?.telephone || 'Non renseigné'}</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="location-outline" size={20} color="#007AFF" />
-            <Text style={styles.infoText}>
-              {user?.patient?.adresse || 'Non renseigné'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Menu */}
-        {menuSections.map((section, sectionIndex) => (
-          <View key={sectionIndex} style={styles.menuSection}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            <View style={styles.menuItems}>
-              {section.items.map(renderMenuItem)}
-            </View>
-          </View>
-        ))}
-
-        {/* Version de l'app */}
-        <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>SantéAfrik v1.0.0</Text>
-        </View>
-      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -379,43 +400,201 @@ export default function PatientProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F2F2F7', // iOS System Gray 6
   },
-  profileHeader: {
-    backgroundColor: 'white',
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 16,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  // Profile Header
+  profileHeader: {
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   avatarContainer: {
     position: 'relative',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
     backgroundColor: '#F2F2F7',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
     backgroundColor: '#F2F2F7',
   },
   editAvatarButton: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
+  userName: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 8,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  userEmail: {
+    fontSize: 16,
+    color: '#8E8E93',
+    marginBottom: 20,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  // Sections
+  section: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20, // Gros coins arrondis iOS
+    padding: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 20,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  // Contact Info
+  contactInfo: {
+    gap: 20,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  contactIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  contactDetails: {
+    flex: 1,
+  },
+  contactLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#8E8E93',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  contactText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  // Menu
+  menuItems: {
+    gap: 0,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+  },
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  menuIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  menuItemText: {
+    flex: 1,
+  },
+  menuItemTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  menuItemSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginTop: 2,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F2F2F7',
+    marginLeft: 52,
+  },
+  
+  // Version
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  versionText: {
+    fontSize: 12,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  // Photo Viewer Modal
   viewerBackdrop: {
     flex: 1,
     backgroundColor: '#000000',
@@ -427,21 +606,29 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 56,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
     paddingTop: 8,
+    zIndex: 1,
   },
   headerIconBtn: {
-    padding: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF20',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   viewerTitle: {
     flex: 1,
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    textAlign: 'left',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   viewerContainer: {
     width: '100%',
@@ -454,114 +641,8 @@ const styles = StyleSheet.create({
     height: '85%',
   },
   viewerPlaceholder: {
-    color: '#9CA3AF',
-    fontSize: 14,
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 4,
-  },
-  userEmail: {
+    color: '#FFFFFF80',
     fontSize: 16,
-    color: '#8E8E93',
-    marginBottom: 16,
-  },
-  editProfileButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  editProfileText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#007AFF',
-  },
-  quickInfo: {
-    backgroundColor: 'white',
-    marginTop: 8,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  infoText: {
-    marginLeft: 12,
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  menuSection: {
-    marginTop: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#8E8E93',
-    marginBottom: 8,
-    paddingHorizontal: 16,
-  },
-  menuItems: {
-    backgroundColor: 'white',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
-  },
-  menuItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  menuIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  menuItemText: {
-    flex: 1,
-  },
-  menuItemTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#000',
-  },
-  menuItemSubtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 2,
-  },
-  versionContainer: {
-    alignItems: 'center',
-    paddingVertical: 24,
-  },
-  versionText: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
 });

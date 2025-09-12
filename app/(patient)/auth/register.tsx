@@ -3,17 +3,18 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
+import { apiService } from '../../../services/api';
 
 export default function PatientRegisterScreen() {
   const router = useRouter();
@@ -56,20 +57,34 @@ export default function PatientRegisterScreen() {
 
     setLoading(true);
     try {
-      // Ici, vous appelleriez votre API d'inscription
-      // const response = await apiService.register(formData);
-      
-      // Simulation d'inscription réussie
-      setTimeout(() => {
-        Alert.alert(
-          'Inscription réussie',
-          'Votre compte patient a été créé avec succès',
-          [{ text: 'OK', onPress: () => router.replace('/(auth)/patient/login') }]
-        );
-        setLoading(false);
-      }, 2000);
+      const response = await apiService.registerPatient({
+        email: formData.email,
+        motdepasse: formData.password,
+        nom: formData.lastName,
+        prenom: formData.firstName,
+        telephone: formData.phone,
+        datenaissance: formData.birthDate,
+        genre: 'M', // Par défaut, à modifier selon les besoins
+        adresse: formData.address,
+        groupesanguin: 'O+', // Par défaut, à modifier selon les besoins
+        poids: 70, // Par défaut, à modifier selon les besoins
+        taille: 170, // Par défaut, à modifier selon les besoins
+      });
+
+      Alert.alert(
+        'Inscription réussie',
+        'Un code de vérification a été envoyé à votre adresse email. Veuillez vérifier votre boîte de réception.',
+        [{ 
+          text: 'OK', 
+          onPress: () => router.push({
+            pathname: '/(auth)/patient/verify-otp',
+            params: { email: formData.email }
+          })
+        }]
+      );
     } catch (error: any) {
-      Alert.alert('Erreur d\'inscription', error.message);
+      Alert.alert('Erreur d\'inscription', error.message || 'Une erreur est survenue');
+    } finally {
       setLoading(false);
     }
   };

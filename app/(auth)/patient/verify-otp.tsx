@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
     Alert,
@@ -12,8 +12,10 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { apiService } from '../../../services/api';
 
 export default function VerifyOTPScreen() {
+  const { email } = useLocalSearchParams();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
   const [timer, setTimer] = useState(60);
@@ -48,32 +50,16 @@ export default function VerifyOTPScreen() {
     setIsLoading(true);
     
     try {
-      // Appel API pour vérifier l'OTP
-      const response = await fetch('http://localhost:3000/api/auth/verify-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      await apiService.verifyOtp(email as string, otpCode);
+
+      Alert.alert('Succès', 'Compte vérifié avec succès', [
+        {
+          text: 'OK',
+          onPress: () => router.push('/(auth)/patient/login'),
         },
-        body: JSON.stringify({
-          email: 'patient@example.com', // Récupérer depuis le contexte ou navigation
-          otp: otpCode,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        Alert.alert('Succès', 'Compte vérifié avec succès', [
-          {
-            text: 'OK',
-            onPress: () => router.push('/(patient)/screens/home'),
-          },
-        ]);
-      } else {
-        Alert.alert('Erreur', data.error || 'Code OTP invalide');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur de connexion. Veuillez réessayer.');
+      ]);
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Code OTP invalide');
     } finally {
       setIsLoading(false);
     }
@@ -83,27 +69,13 @@ export default function VerifyOTPScreen() {
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:3000/api/auth/resend-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: 'patient@example.com', // Récupérer depuis le contexte
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setTimer(60);
-        setCanResend(false);
-        Alert.alert('Succès', 'Code OTP renvoyé');
-      } else {
-        Alert.alert('Erreur', data.error || 'Erreur lors du renvoi');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur de connexion. Veuillez réessayer.');
+      await apiService.resendOtp(email as string);
+      
+      setTimer(60);
+      setCanResend(false);
+      Alert.alert('Succès', 'Code OTP renvoyé');
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Erreur lors du renvoi');
     } finally {
       setIsLoading(false);
     }

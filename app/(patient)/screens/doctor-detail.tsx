@@ -1,14 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+    ActivityIndicator,
     Dimensions,
+    Platform,
     SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { apiService, Medecin } from '../../../services/api';
 
@@ -84,8 +86,11 @@ export default function PatientDoctorDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* En-tête du médecin */}
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Header du médecin */}
         <View style={styles.header}>
           <View style={styles.doctorImageContainer}>
             <View style={styles.doctorImage}>
@@ -98,12 +103,15 @@ export default function PatientDoctorDetailScreen() {
             )}
           </View>
           
-          <Text style={styles.doctorName}>{doctorFromParam ? `${doctorFromParam.prenom} ${doctorFromParam.nom}` : 'Médecin'}</Text>
-          <Text style={styles.doctorSpecialty}>{doctorFromParam?.specialites?.map(s => s.nom).join(', ') || 'Spécialité'}</Text>
+          <Text style={styles.doctorName}>
+            Dr. {doctorFromParam ? `${doctorFromParam.prenom} ${doctorFromParam.nom}` : 'Médecin'}
+          </Text>
+          <Text style={styles.doctorSpecialty}>
+            {doctorFromParam?.specialites?.map(s => s.nom).join(', ') || 'Spécialité'}
+          </Text>
           
           <View style={styles.ratingContainer}>
             <Ionicons name="star" size={16} color="#FFD700" />
-            {/* Placeholders de note/avis si non fournis par l'API */}
             <Text style={styles.rating}>4.8</Text>
             <Text style={styles.reviews}>(127 avis)</Text>
           </View>
@@ -115,87 +123,108 @@ export default function PatientDoctorDetailScreen() {
 
         {/* Informations de contact */}
         <View style={styles.section}>
+          <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Informations de contact</Text>
           <View style={styles.contactInfo}>
             <View style={styles.contactItem}>
+                <View style={styles.contactIcon}>
               <Ionicons name="location-outline" size={20} color="#007AFF" />
-              <Text style={styles.contactText}>{doctorFromParam?.cabinet?.adresse || 'Adresse indisponible'}</Text>
+                </View>
+                <View style={styles.contactDetails}>
+                  <Text style={styles.contactLabel}>Cabinet</Text>
+                  <Text style={styles.contactText}>{doctorFromParam?.cabinet?.nom || 'Cabinet médical'}</Text>
+                  <Text style={styles.contactSubtext}>{doctorFromParam?.cabinet?.adresse || 'Adresse indisponible'}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.contactItem}>
+                <View style={styles.contactIcon}>
+                  <Ionicons name="mail-outline" size={20} color="#007AFF" />
+                </View>
+                <View style={styles.contactDetails}>
+                  <Text style={styles.contactLabel}>Email</Text>
+                  <Text style={styles.contactText}>{doctorFromParam?.email || 'Email indisponible'}</Text>
+                </View>
             </View>
+              
             <View style={styles.contactItem}>
+                <View style={styles.contactIcon}>
               <Ionicons name="call-outline" size={20} color="#007AFF" />
-              <Text style={styles.contactText}>{doctorFromParam?.email || 'Email indisponible'}</Text>
+                </View>
+                <View style={styles.contactDetails}>
+                  <Text style={styles.contactLabel}>Téléphone</Text>
+                  <Text style={styles.contactText}>Téléphone indisponible</Text>
+                </View>
             </View>
-            <View style={styles.contactItem}>
-              <Ionicons name="language-outline" size={20} color="#007AFF" />
-              <Text style={styles.contactText}>{doctorFromParam?.cabinet?.nom || 'Cabinet'}</Text>
             </View>
           </View>
         </View>
 
-        {/* Description */}
+        {/* À propos */}
+        {doctorFromParam?.biographie && (
         <View style={styles.section}>
+            <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>À propos</Text>
-          {doctorFromParam?.biographie && (
-            <Text style={styles.description}>{doctorFromParam.biographie}</Text>
-          )}
+              <Text style={styles.description}>{doctorFromParam.biographie}</Text>
         </View>
-
-        {/* Formation */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Formation</Text>
-          {/* À remplir si l'API fournit la formation */}
-        </View>
-
-        {/* Certifications */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Certifications</Text>
-          {/* À remplir si l'API fournit les certifications */}
-        </View>
+            </View>
+        )}
 
         {/* Créneaux disponibles */}
         <View style={styles.section}>
+          <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Créneaux disponibles</Text>
           <View style={styles.timeSlotsGrid}>
-            {loading ? (
-              <Text style={{ color: '#8E8E93' }}>Chargement...</Text>
-            ) : (
-              creneaux.map((slot) => {
-                const timeLabel = new Date(slot.debut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const isSelected = selectedTime === slot.idcreneau;
-                return (
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#007AFF" />
+                  <Text style={styles.loadingText}>Chargement des créneaux...</Text>
+                </View>
+              ) : creneaux.length > 0 ? (
+                creneaux.map((slot) => {
+                  const timeLabel = new Date(slot.debut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  const isSelected = selectedTime === slot.idcreneau;
+                  return (
               <TouchableOpacity
-                    key={slot.idcreneau}
+                      key={slot.idcreneau}
                 style={[
                   styles.timeSlot,
-                      !slot.disponible && styles.timeSlotUnavailable,
-                      isSelected && styles.timeSlotSelected,
-                    ]}
-                    onPress={() => {
-                      if (!slot.disponible) return;
-                      setSelectedTime(slot.idcreneau);
-                      setSelectedStart(slot.debut);
-                      setSelectedEnd(slot.fin);
-                    }}
-                    disabled={!slot.disponible}
+                        !slot.disponible && styles.timeSlotUnavailable,
+                        isSelected && styles.timeSlotSelected,
+                      ]}
+                      onPress={() => {
+                        if (!slot.disponible) return;
+                        setSelectedTime(slot.idcreneau);
+                        setSelectedStart(slot.debut);
+                        setSelectedEnd(slot.fin);
+                      }}
+                      disabled={!slot.disponible}
               >
                 <Text
                   style={[
                     styles.timeSlotText,
-                        !slot.disponible && styles.timeSlotTextUnavailable,
-                        isSelected && styles.timeSlotTextSelected,
+                          !slot.disponible && styles.timeSlotTextUnavailable,
+                          isSelected && styles.timeSlotTextSelected,
                   ]}
                 >
-                      {timeLabel}
+                        {timeLabel}
                 </Text>
               </TouchableOpacity>
-                );
-              })
-            )}
+                  );
+                })
+              ) : (
+                <View style={styles.noSlotsContainer}>
+                  <Ionicons name="calendar-outline" size={32} color="#8E8E93" />
+                  <Text style={styles.noSlotsText}>Aucun créneau disponible</Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
 
         {/* Avis des patients */}
         <View style={styles.section}>
+          <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Avis des patients</Text>
           {reviews.map((review) => (
             <View key={review.id} style={styles.reviewCard}>
@@ -216,13 +245,15 @@ export default function PatientDoctorDetailScreen() {
               <Text style={styles.reviewComment}>{review.comment}</Text>
             </View>
           ))}
+          </View>
         </View>
 
         {/* Bouton de réservation */}
-        <View style={styles.bookingContainer}>
+        <View style={styles.bookingSection}>
+          <View style={styles.bookingCard}>
           <View style={styles.priceContainer}>
             <Text style={styles.priceLabel}>Prix de la consultation</Text>
-            <Text style={styles.price}>—</Text>
+              <Text style={styles.price}>—</Text>
           </View>
           
           <TouchableOpacity
@@ -237,6 +268,7 @@ export default function PatientDoctorDetailScreen() {
               {selectedTime ? 'Réserver maintenant' : 'Sélectionnez un créneau'}
             </Text>
           </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -246,17 +278,28 @@ export default function PatientDoctorDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F2F2F7', // iOS System Gray 6
   },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  
+  // Header
   header: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 16,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   doctorImageContainer: {
     position: 'relative',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   doctorImage: {
     width: 120,
@@ -270,23 +313,32 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#34C759',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   doctorName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 4,
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 8,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   doctorSpecialty: {
     fontSize: 16,
     color: '#8E8E93',
-    marginBottom: 8,
+    marginBottom: 12,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -294,80 +346,131 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   rating: {
-    marginLeft: 4,
-    fontSize: 16,
+    marginLeft: 6,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#000',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   reviews: {
-    marginLeft: 4,
+    marginLeft: 6,
     fontSize: 14,
     color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   experience: {
     fontSize: 14,
     color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
+  
+  // Sections
   section: {
-    backgroundColor: 'white',
-    marginTop: 8,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20, // Gros coins arrondis iOS
+    padding: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 12,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 20,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
+  
+  // Contact Info
   contactInfo: {
-    gap: 12,
+    gap: 20,
   },
   contactItem: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  contactIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF15',
+    justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 16,
+  },
+  contactDetails: {
+    flex: 1,
+  },
+  contactLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#8E8E93',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   contactText: {
-    marginLeft: 12,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#000000',
+    marginBottom: 2,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  contactSubtext: {
     fontSize: 14,
     color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
+  
+  // Description
   description: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#8E8E93',
-    lineHeight: 20,
+    lineHeight: 24,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
-  educationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  educationText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  certificationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  certificationText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#8E8E93',
-  },
+  
+  // Time Slots
   timeSlotsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 12,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    width: '100%',
+  },
+  loadingText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  noSlotsContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    width: '100%',
+  },
+  noSlotsText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   timeSlot: {
     backgroundColor: '#F2F2F7',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minWidth: (width - 64) / 3,
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    minWidth: (width - 120) / 3,
     alignItems: 'center',
   },
   timeSlotUnavailable: {
@@ -375,34 +478,43 @@ const styles = StyleSheet.create({
   },
   timeSlotSelected: {
     backgroundColor: '#007AFF',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   timeSlotText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   timeSlotTextUnavailable: {
     color: '#8E8E93',
   },
   timeSlotTextSelected: {
-    color: 'white',
+    color: '#FFFFFF',
   },
+  
+  // Reviews
   reviewCard: {
     backgroundColor: '#F2F2F7',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
   },
   reviewHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   reviewPatient: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   reviewRating: {
     flexDirection: 'row',
@@ -410,20 +522,33 @@ const styles = StyleSheet.create({
   reviewDate: {
     fontSize: 12,
     color: '#8E8E93',
-    marginBottom: 8,
+    marginBottom: 12,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   reviewComment: {
     fontSize: 14,
     color: '#8E8E93',
-    lineHeight: 18,
+    lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
-  bookingContainer: {
-    backgroundColor: 'white',
-    marginTop: 8,
-    padding: 16,
+  
+  // Booking
+  bookingSection: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  bookingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   priceContainer: {
     flex: 1,
@@ -432,25 +557,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   price: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#000',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   bookButton: {
     backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    marginLeft: 16,
+    borderRadius: 16,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    marginLeft: 20,
   },
   bookButtonDisabled: {
     backgroundColor: '#E5E5EA',
   },
   bookButtonText: {
-    color: 'white',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 17,
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
 });

@@ -1,16 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { apiService, User } from '../../../services/api';
 
@@ -164,9 +165,7 @@ export default function PatientHomeScreen() {
 
   const quickActions = [
     { id: 1, title: 'Prendre RDV', subtitle: 'Réserver en ligne', icon: 'calendar-outline', color: '#007AFF' },
-    { id: 2, title: 'Mes RDV', subtitle: 'Gérer mes rendez-vous', icon: 'list-outline', color: '#34C759' },
-    { id: 3, title: 'Urgences', subtitle: 'Appeler le 15', icon: 'call-outline', color: '#FF3B30' },
-    { id: 4, title: 'Pharmacie', subtitle: 'Trouver une pharmacie', icon: 'medical-outline', color: '#FF9500' },
+    { id: 2, title: 'Urgences', subtitle: 'Appeler le 15', icon: 'call-outline', color: '#FF3B30' },
   ];
 
   return (
@@ -230,17 +229,17 @@ export default function PatientHomeScreen() {
         <View style={styles.searchSection}>
           <View style={styles.searchCard}>
             <View style={styles.searchHeader}>
-              <Ionicons name="search-outline" size={20} color="#8E8E93" />
-              <TextInput
-                style={styles.searchInput}
+            <Ionicons name="search-outline" size={20} color="#8E8E93" />
+            <TextInput
+              style={styles.searchInput}
                 placeholder="Rechercher un médecin, spécialité ou symptôme..."
                 placeholderTextColor="#8E8E93"
                 value={query}
                 onChangeText={onSearch}
               />
               {loading && <ActivityIndicator size="small" color="#007AFF" />}
-            </View>
-            
+        </View>
+
             {(loading || results.length > 0) && (
               <View style={styles.searchResults}>
                 {loading ? (
@@ -266,7 +265,7 @@ export default function PatientHomeScreen() {
                       >
                         <View style={styles.searchResultIcon}>
                           <Ionicons name="person-circle-outline" size={20} color="#007AFF" />
-                        </View>
+              </View>
                         <View style={styles.searchResultContent}>
                           <Text style={styles.searchResultName}>
                             {medecin.prenom} {medecin.nom}
@@ -282,11 +281,11 @@ export default function PatientHomeScreen() {
                           <Text style={styles.searchResultType}>
                             Médecin
                           </Text>
-                        </View>
+              </View>
                         <Ionicons name="chevron-forward-outline" size={16} color="#8E8E93" />
-                      </TouchableOpacity>
+            </TouchableOpacity>
                     ))}
-                  </View>
+          </View>
                 )}
               </View>
             )}
@@ -298,14 +297,25 @@ export default function PatientHomeScreen() {
           <Text style={styles.sectionTitle}>Actions rapides</Text>
           <View style={styles.quickActionsGrid}>
             {quickActions.map((action) => (
-              <TouchableOpacity
-                key={action.id}
+              <TouchableOpacity 
+                key={action.id} 
                 style={styles.quickActionCard}
                 onPress={() => {
                   if (action.id === 1) router.push('/(patient)/screens/search');
-                  if (action.id === 2) router.push('/(patient)/screens/appointments');
-                  if (action.id === 3) router.push('/(patient)/screens/sante');
-                  if (action.id === 4) router.push('/(patient)/screens/profile');
+                  if (action.id === 2) {
+                    // Appeler le 15 pour les urgences
+                    Alert.alert(
+                      'Urgences médicales',
+                      'Composez le 15 pour les urgences médicales',
+                      [
+                        { text: 'Annuler', style: 'cancel' },
+                        { text: 'Appeler le 15', style: 'destructive', onPress: () => {
+                          // TODO: Implémenter l'appel téléphonique
+                          console.log('Appel du 15...');
+                        }}
+                      ]
+                    );
+                  }
                 }}
               >
                 <View style={[styles.quickActionIcon, { backgroundColor: action.color + '15' }]}>

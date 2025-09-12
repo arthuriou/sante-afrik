@@ -149,6 +149,67 @@ export interface DocumentMedical {
   ispublic: boolean;
 }
 
+// Interfaces pour la messagerie
+export interface Conversation {
+  idconversation: string;
+  type_conversation: 'PRIVEE' | 'GROUPE_CABINET' | 'SUPPORT';
+  titre?: string;
+  cabinet_id?: string;
+  participants: Participant[];
+  dernier_message?: Message;
+  nombre_messages_non_lus: number;
+}
+
+export interface Participant {
+  idParticipant: string;
+  utilisateur_id: string;
+  role_participant: 'MEMBRE' | 'ADMIN';
+  dateRejointe: string;
+  actif: boolean;
+  utilisateur: {
+    idutilisateur: string;
+    nom: string;
+    prenom: string;
+    email: string;
+    role: string;
+  };
+}
+
+export interface Message {
+  idmessage: string;
+  conversation_id: string;
+  expediteur_id: string;
+  contenu: string;
+  type_message: 'TEXTE' | 'IMAGE' | 'FICHIER' | 'SYSTEME';
+  dateEnvoi: string;
+  expediteur: {
+    idutilisateur: string;
+    nom: string;
+    prenom: string;
+    email: string;
+    role: string;
+  };
+  reponse_a_message?: {
+    idmessage: string;
+    contenu: string;
+    expediteur: {
+      nom: string;
+      prenom: string;
+    };
+  };
+  lu_par: MessageLu[];
+}
+
+export interface MessageLu {
+  idMessageLu: string;
+  utilisateur_id: string;
+  dateLecture: string;
+  utilisateur: {
+    nom: string;
+    prenom: string;
+  };
+}
+
 // Service API générique
 class ApiService {
   private token: string | null = null;
@@ -363,6 +424,7 @@ class ApiService {
     numordre: string;
     experience: number;
     biographie: string;
+    specialiteIds?: string[];
   }) {
     return this.request('/api/auth/register-doctor', {
       method: 'POST',
@@ -401,6 +463,27 @@ class ApiService {
     return this.request('/api/auth/verify-otp', {
       method: 'POST',
       body: { email, otp },
+    });
+  }
+
+  async resendOtp(email: string) {
+    return this.request('/api/auth/resend-otp', {
+      method: 'POST',
+      body: { email },
+    });
+  }
+
+  async changePassword(email: string, newPassword: string) {
+    return this.request('/api/auth/change-password', {
+      method: 'POST',
+      body: { email, newPassword },
+    });
+  }
+
+  async forgotPassword(email: string) {
+    return this.request('/api/auth/forgot-password', {
+      method: 'POST',
+      body: { email },
     });
   }
 
@@ -513,9 +596,9 @@ class ApiService {
     if (params?.cabinetId) query.append('cabinetId', params.cabinetId);
     if (typeof params?.onlyApproved === 'boolean') query.append('onlyApproved', String(params.onlyApproved));
 
-    return this.request<{ message: string; data: Medecin[] }>(
-      `/api/auth/medecins?${query.toString()}`
-    );
+    const queryString = query.toString();
+    const url = `/api/auth/medecins${queryString ? `?${queryString}` : ''}`;
+    return this.request<{ message: string; data: User[] }>(url);
   }
 
   async getUserById(userId: string) {
@@ -714,6 +797,85 @@ class ApiService {
 
   async deleteDocument(id: string) {
     return this.request(`/api/dossier-medical/documents/${id}`, { method: 'DELETE' });
+  }
+
+  // === MESSAGERIE ===
+  
+  async createOrGetPrivateConversation(participantId: string) {
+    return this.request<{ message: string; data: Conversation }>('/api/messagerie/conversations/private', {
+      method: 'POST',
+      body: { participantId }
+    });
+  }
+
+  async getConversations() {
+    return this.request<{ message: string; data: Conversation[] }>('/api/messagerie/conversations');
+  }
+
+  async getConversation(id: string) {
+    return this.request<{ message: string; data: Conversation }>(`/api/messagerie/conversations/${id}`);
+  }
+
+  async addParticipantToConversation(conversationId: string, participantId: string) {
+    return this.request(`/api/messagerie/conversations/${conversationId}/participants`, {
+      method: 'POST',
+      body: { participantId }
+    });
+  }
+
+  async removeParticipantFromConversation(conversationId: string, participantId: string) {
+    return this.request(`/api/messagerie/conversations/${conversationId}/participants/${participantId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async markConversationAsRead(conversationId: string) {
+    return this.request(`/api/messagerie/conversations/${conversationId}/read`, {
+      method: 'POST'
+    });
+  }
+
+  async sendMessage(conversationId: string, contenu: string, typeMessage: 'TEXTE' | 'IMAGE' | 'FICHIER' = 'TEXTE', reponseA?: string) {
+    return this.request<{ message: string; data: Message }>('/api/messagerie/messages', {
+      method: 'POST',
+      body: {
+        conversation_id: conversationId,
+        contenu,
+        type_message: typeMessage,
+        reponse_a: reponseA
+      }
+    });
+  }
+
+  async sendFileMessage(conversationId: string, file: any) {
+    const formData = new FormData();
+    formData.append('conversation_id', conversationId);
+    formData.append('file', file);
+    
+    return this.postMultipart<{ message: string; data: Message }>('/api/messagerie/messages', formData);
+  }
+
+  async getMessages(conversationId: string, limit: number = 50, offset: number = 0) {
+    return this.request<{ message: string; data: Message[] }>(`/api/messagerie/conversations/${conversationId}/messages?limit=${limit}&offset=${offset}`);
+  }
+
+  async updateMessage(messageId: string, contenu: string) {
+    return this.request(`/api/messagerie/messages/${messageId}`, {
+      method: 'PUT',
+      body: { contenu }
+    });
+  }
+
+  async deleteMessage(messageId: string) {
+    return this.request(`/api/messagerie/messages/${messageId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async markMessageAsRead(messageId: string) {
+    return this.request(`/api/messagerie/messages/${messageId}/read`, {
+      method: 'POST'
+    });
   }
 }
 

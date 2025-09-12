@@ -62,16 +62,17 @@ export default function PatientLoginScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <Ionicons name="person" size={40} color="#007AFF" />
-              <Text style={styles.logoText}>Patient</Text>
+              <View style={styles.logoIcon}>
+                <Ionicons name="medical" size={48} color="#007AFF" />
+              </View>
             </View>
+            <Text style={styles.title}>SantéAfrik</Text>
             <Text style={styles.subtitle}>
               Connectez-vous à votre compte patient
             </Text>
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.title}>Connexion</Text>
             
             <View style={styles.inputContainer}>
               <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
@@ -156,7 +157,7 @@ export default function PatientLoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F2F2F7',
   },
   keyboardView: {
     flex: 1,
@@ -164,85 +165,102 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
-    paddingTop: 20,
+    padding: 24,
+    paddingTop: 60,
     paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 48,
   },
   logoContainer: {
-    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 24,
   },
-  logoText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#007AFF',
-    marginLeft: 10,
+  logoIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    backgroundColor: '#007AFF15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#1C1C1E',
+    textAlign: 'center',
+    marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 17,
+    color: '#8E8E93',
     textAlign: 'center',
+    lineHeight: 22,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   form: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 28,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 32,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 30,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F2F2F7',
     borderRadius: 12,
     paddingHorizontal: 16,
     marginBottom: 20,
     height: 56,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   input: {
     flex: 1,
     fontSize: 17,
-    color: '#333',
+    color: '#1C1C1E',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   passwordToggle: {
     padding: 5,
   },
   loginButton: {
     backgroundColor: '#007AFF',
-    borderRadius: 12,
+    borderRadius: 16,
     height: 56,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 24,
+    shadowColor: '#007AFF',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   loginButtonDisabled: {
     opacity: 0.6,
   },
   loginButtonText: {
-    color: 'white',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 17,
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   forgotPassword: {
     alignItems: 'center',

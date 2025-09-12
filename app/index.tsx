@@ -3,11 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import {
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { apiService } from '../services/api';
 
@@ -27,7 +28,9 @@ export default function WelcomeScreen() {
             router.replace('/(patient)/screens/home');
           }
         }
-      } catch {}
+      } catch (error) {
+        console.log('Bootstrap error:', error);
+      }
     };
     bootstrap();
   }, []);
@@ -38,7 +41,9 @@ export default function WelcomeScreen() {
         {/* Logo et titre */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
-            <Ionicons name="medical" size={60} color="#007AFF" />
+            <View style={styles.logoIcon}>
+              <Ionicons name="medical" size={64} color="#007AFF" />
+            </View>
             <Text style={styles.logoText}>SantéAfrik</Text>
           </View>
           <Text style={styles.subtitle}>
@@ -55,7 +60,7 @@ export default function WelcomeScreen() {
             onPress={() => router.push('/(auth)/patient/login')}
           >
             <View style={styles.buttonIcon}>
-              <Ionicons name="person-outline" size={40} color="#007AFF" />
+              <Ionicons name="person-outline" size={48} color="#007AFF" />
             </View>
             <Text style={styles.buttonTitle}>Patient</Text>
             <Text style={styles.buttonSubtitle}>
@@ -68,7 +73,7 @@ export default function WelcomeScreen() {
             onPress={() => router.push('/(auth)/medecin/login')}
           >
             <View style={styles.buttonIcon}>
-              <Ionicons name="medical-outline" size={40} color="#34C759" />
+              <Ionicons name="medical-outline" size={48} color="#34C759" />
             </View>
             <Text style={styles.buttonTitle}>Médecin</Text>
             <Text style={styles.buttonSubtitle}>
@@ -97,76 +102,95 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 60,
+    marginBottom: 80,
   },
   logoContainer: {
-    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
+  },
+  logoIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 25,
+    backgroundColor: '#007AFF15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
   },
   logoText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#007AFF',
-    marginLeft: 12,
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#1C1C1E',
+    textAlign: 'center',
+    marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 17,
     color: '#8E8E93',
     textAlign: 'center',
+    lineHeight: 22,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   selectionContainer: {
-    marginBottom: 60,
+    marginBottom: 80,
   },
   selectionTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1C1C1E',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 40,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   selectionButton: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 32,
+    marginBottom: 20,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
   },
   buttonIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 25,
     backgroundColor: '#F2F2F7',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   buttonTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#000',
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#1C1C1E',
     marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   buttonSubtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#8E8E93',
     textAlign: 'center',
     lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   footer: {
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#8E8E93',
     textAlign: 'center',
+    lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
 });

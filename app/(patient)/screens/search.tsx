@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -213,11 +213,23 @@ export default function PatientSearchScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Barre de recherche */}
-        <View style={styles.searchContainer}>
+      {/* Header iOS-style */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Recherche</Text>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="chevron-back" size={24} color="#007AFF" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
+        {/* Barre de recherche iOS-style */}
+        <View style={styles.searchSection}>
+          <View style={styles.searchCard}>
           <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={20} color="#8E8E93" />
+              <Ionicons name="search" size={20} color="#8E8E93" />
             <TextInput
               style={styles.searchInput}
               placeholder="Nom du médecin, spécialité..."
@@ -230,10 +242,12 @@ export default function PatientSearchScreen() {
                 <Ionicons name="close-circle" size={20} color="#8E8E93" />
               </TouchableOpacity>
             )}
+            </View>
           </View>
         </View>
 
-        {/* Onglets */}
+        {/* Onglets iOS-style */}
+        <View style={styles.tabsSection}>
         <View style={styles.tabsContainer}>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'specialites' && styles.activeTab]}
@@ -251,6 +265,7 @@ export default function PatientSearchScreen() {
               Maux
             </Text>
           </TouchableOpacity>
+          </View>
         </View>
 
         {/* Contenu selon l'onglet actif */}
@@ -258,22 +273,25 @@ export default function PatientSearchScreen() {
           <>
             {/* Spécialités */}
             <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="medical" size={20} color="#007AFF" />
               <Text style={styles.sectionTitle}>Choisir une spécialité</Text>
+              </View>
               {loading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#007AFF" />
                 </View>
               ) : (
-                <>
-                  {console.log('🎯 Rendu spécialités:', specialties.length, specialties)}
+                <View style={styles.specialtiesContainer}>
                   <FlatList
                     data={specialties}
                     renderItem={renderSpecialty}
                     keyExtractor={(item) => item.idspecialite}
                     horizontal
                     showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.specialtiesList}
                   />
-                </>
+                </View>
               )}
             </View>
 
@@ -281,8 +299,13 @@ export default function PatientSearchScreen() {
             {selectedSpecialty && (
               <View style={styles.section}>
                 <View style={styles.resultsHeader}>
+                  <View style={styles.resultsHeaderLeft}>
+                    <Ionicons name="people" size={20} color="#007AFF" />
                   <Text style={styles.sectionTitle}>Médecins disponibles</Text>
-                  <Text style={styles.resultsCount}>{doctors.length} résultats</Text>
+                  </View>
+                  <View style={styles.resultsBadge}>
+                    <Text style={styles.resultsCount}>{doctors.length}</Text>
+                  </View>
                 </View>
                 
                 {loading ? (
@@ -290,6 +313,7 @@ export default function PatientSearchScreen() {
                     <ActivityIndicator size="large" color="#007AFF" />
                   </View>
                 ) : (
+                  <View style={styles.doctorsContainer}>
                   <FlatList
                     data={doctors}
                     renderItem={renderDoctor}
@@ -297,6 +321,7 @@ export default function PatientSearchScreen() {
                     scrollEnabled={false}
                     showsVerticalScrollIndicator={false}
                   />
+                  </View>
                 )}
               </View>
             )}
@@ -305,27 +330,36 @@ export default function PatientSearchScreen() {
           <>
             {/* Maux */}
             <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="medical-outline" size={20} color="#007AFF" />
               <Text style={styles.sectionTitle}>Choisir un mal</Text>
+              </View>
               {loading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#007AFF" />
                 </View>
               ) : (
+                <View style={styles.mauxContainer}>
                 <FlatList
                   data={maux}
                   renderItem={renderMal}
                   keyExtractor={(item) => item.idmaux}
                   horizontal
                   showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.mauxList}
                 />
+                </View>
               )}
             </View>
 
             {/* Message pour les maux */}
             {selectedMal && (
               <View style={styles.section}>
-                <View style={styles.infoBox}>
-                  <Ionicons name="information-circle-outline" size={24} color="#007AFF" />
+                <View style={styles.infoCard}>
+                  <View style={styles.infoHeader}>
+                    <Ionicons name="information-circle" size={24} color="#007AFF" />
+                    <Text style={styles.infoTitle}>Information</Text>
+                  </View>
                   <Text style={styles.infoText}>
                     Sélectionnez un mal pour voir les médecins spécialisés dans ce domaine.
                   </Text>
@@ -344,98 +378,126 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F2F2F7',
   },
-  searchContainer: {
-    padding: 16,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: 'white',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#C6C6C8',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 34,
+    fontWeight: '700',
+    color: '#000',
+    textAlign: 'center',
+  },
+  backButton: {
+    padding: 4,
+    marginRight: 8,
+  },
+  content: {
+    flex: 1,
+  },
+  searchSection: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+  },
+  searchCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F2F2F7',
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 12,
     fontSize: 16,
-    color: '#000',
+    color: '#1D1D1F',
+  },
+  tabsSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   tabsContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
-    marginTop: 8,
-    paddingHorizontal: 16,
+    borderRadius: 16,
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   tab: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 12,
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    borderRadius: 12,
   },
   activeTab: {
-    borderBottomColor: '#007AFF',
+    backgroundColor: '#007AFF',
   },
   tabText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#8E8E93',
   },
   activeTabText: {
-    color: '#007AFF',
+    color: 'white',
+  },
+  section: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1D1D1F',
+    marginLeft: 8,
   },
   loadingContainer: {
     paddingVertical: 40,
     alignItems: 'center',
   },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F8FF',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
-  },
-  infoText: {
-    marginLeft: 12,
-    fontSize: 14,
-    color: '#007AFF',
-    flex: 1,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  specialtiesContainer: {
     backgroundColor: 'white',
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  filterButtonText: {
-    marginLeft: 6,
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
-  },
-  section: {
-    marginTop: 16,
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 12,
+  specialtiesList: {
+    paddingRight: 16,
   },
   specialtyCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 12,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginRight: 12,
@@ -449,7 +511,7 @@ const styles = StyleSheet.create({
   specialtyName: {
     marginLeft: 8,
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#007AFF',
   },
   specialtyNameSelected: {
@@ -459,24 +521,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+  },
+  resultsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resultsBadge: {
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
   resultsCount: {
     fontSize: 14,
-    color: '#8E8E93',
+    fontWeight: '600',
+    color: 'white',
+  },
+  doctorsContainer: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   doctorCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   doctorImageContainer: {
     position: 'relative',
@@ -486,7 +564,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -513,7 +591,7 @@ const styles = StyleSheet.create({
   doctorName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: '#1D1D1F',
   },
   ratingContainer: {
     flexDirection: 'row',
@@ -522,8 +600,8 @@ const styles = StyleSheet.create({
   rating: {
     marginLeft: 4,
     fontSize: 14,
-    fontWeight: '500',
-    color: '#000',
+    fontWeight: '600',
+    color: '#1D1D1F',
   },
   reviews: {
     marginLeft: 4,
@@ -552,7 +630,7 @@ const styles = StyleSheet.create({
   },
   bookButton: {
     backgroundColor: '#007AFF',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
@@ -560,5 +638,46 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  mauxContainer: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  mauxList: {
+    paddingRight: 16,
+  },
+  infoCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#007AFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1D1D1F',
+    marginLeft: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    lineHeight: 20,
   },
 });

@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { apiService } from '../../../services/api';
 
 export default function ChangePasswordScreen() {
   const { email } = useLocalSearchParams();
@@ -65,36 +66,20 @@ export default function ChangePasswordScreen() {
     setIsLoading(true);
     
     try {
-      // Appel API pour changer le mot de passe
-      const response = await fetch('http://localhost:3000/api/auth/change-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email,
-          newPassword: newPassword,
-        }),
-      });
+      await apiService.changePassword(email as string, newPassword);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        Alert.alert(
-          'Succès',
-          'Votre mot de passe a été modifié avec succès',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.push('/(patient)/auth/login'),
-            },
-          ]
-        );
-      } else {
-        Alert.alert('Erreur', data.error || 'Erreur lors du changement de mot de passe');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur de connexion. Veuillez réessayer.');
+      Alert.alert(
+        'Succès',
+        'Votre mot de passe a été modifié avec succès',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.push('/(auth)/patient/login'),
+          },
+        ]
+      );
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Erreur lors du changement de mot de passe');
     } finally {
       setIsLoading(false);
     }
