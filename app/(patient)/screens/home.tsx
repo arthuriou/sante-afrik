@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,13 +12,44 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { apiService, Medecin } from '../../../services/api';
+import { apiService, User } from '../../../services/api';
 
 export default function PatientHomeScreen() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<Medecin[]>([]);
+  const [results, setResults] = useState<any[]>([]);
+  const [nextAppointment, setNextAppointment] = useState<any | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const patientId = useMemo(() => (currentUser?.patient?.idpatient ? currentUser.patient.idpatient : null), [currentUser]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const profile = await apiService.getProfile();
+        setCurrentUser(profile.data);
+      } catch {}
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!patientId) return;
+    (async () => {
+      try {
+        const list = await apiService.getRendezVousPatient(patientId);
+        const upcoming = (list?.data || list || [])
+          .filter((r: any) => new Date(r.dateheure) > new Date())
+          .sort((a: any, b: any) => new Date(a.dateheure).getTime() - new Date(b.dateheure).getTime())[0];
+        setNextAppointment(upcoming || null);
+      } catch {}
+    })();
+  }, [patientId]);
+
+  const nextAppointmentDate = useMemo(() => {
+    if (!nextAppointment) return '';
+    const d = new Date(nextAppointment.dateheure);
+    return d.toLocaleString();
+  }, [nextAppointment]);
 
   const onSearch = useCallback(async (text: string) => {
     setQuery(text);
@@ -25,25 +57,110 @@ export default function PatientHomeScreen() {
       setResults([]);
       return;
     }
+    
     try {
       setLoading(true);
-      const resp = await apiService.getApprovedMedecinsSearch({ q: text.trim(), page: 1, limit: 20 });
-      setResults(resp.data || []);
+      
+      // Recherche simple : chercher des médecins directement
+      const medecinsResp = await apiService.getApprovedMedecinsSearch({ 
+        q: text.trim(), 
+        page: 1, 
+        limit: 20 
+      });
+      
+      const allResults: any[] = [];
+      
+      // Ajouter les médecins trouvés
+      if (medecinsResp?.data) {
+        medecinsResp.data.forEach((medecin: any) => {
+          allResults.push({ ...medecin, _type: 'medecin' });
+        });
+      }
+      
+      // Si pas assez de résultats, chercher par spécialités
+      if (allResults.length < 10) {
+        try {
+          const specialitesResp = await apiService.searchSpecialites({ 
+            nom: text.trim(), 
+            limit: 3 
+          });
+          
+          if (specialitesResp?.data) {
+            for (const specialite of specialitesResp.data) {
+              try {
+                const medecinsSpecialite = await apiService.getMedecinsBySpecialiteId(
+                  specialite.idspecialite, 
+                  { limit: 5 }
+                );
+                
+                if (medecinsSpecialite?.data) {
+                  medecinsSpecialite.data.forEach((medecin: any) => {
+                    // Éviter les doublons
+                    if (!allResults.find(r => r.idmedecin === medecin.idmedecin)) {
+                      allResults.push({ 
+                        ...medecin, 
+                        _type: 'medecin',
+                        _context: `Spécialité: ${specialite.nom}`
+                      });
+                    }
+                  });
+                }
+              } catch (e) {
+                console.log('Erreur médecins spécialité:', e);
+              }
+            }
+          }
+        } catch (e) {
+          console.log('Erreur recherche spécialités:', e);
+        }
+      }
+      
+      // Si toujours pas assez, chercher par maux
+      if (allResults.length < 10) {
+        try {
+          const mauxResp = await apiService.searchMaux({ 
+            nom: text.trim(), 
+            limit: 3 
+          });
+          
+          if (mauxResp?.data) {
+            for (const maux of mauxResp.data) {
+              try {
+                const medecinsMaux = await apiService.getMedecinsByMauxId(
+                  maux.idmaux, 
+                  { limit: 5 }
+                );
+                
+                if (medecinsMaux?.data) {
+                  medecinsMaux.data.forEach((medecin: any) => {
+                    // Éviter les doublons
+                    if (!allResults.find(r => r.idmedecin === medecin.idmedecin)) {
+                      allResults.push({ 
+                        ...medecin, 
+                        _type: 'medecin',
+                        _context: `Traite: ${maux.nom}`
+                      });
+                    }
+                  });
+                }
+              } catch (e) {
+                console.log('Erreur médecins maux:', e);
+              }
+            }
+          }
+        } catch (e) {
+          console.log('Erreur recherche maux:', e);
+        }
+      }
+      
+      setResults(allResults.slice(0, 20));
     } catch (e) {
+      console.log('Erreur recherche générale:', e);
       setResults([]);
     } finally {
       setLoading(false);
     }
   }, []);
-
-  const specialties = [
-    { id: 1, name: 'Médecine générale', icon: 'medical-outline', color: '#007AFF' },
-    { id: 2, name: 'Cardiologie', icon: 'heart-outline', color: '#FF3B30' },
-    { id: 3, name: 'Dermatologie', icon: 'body-outline', color: '#34C759' },
-    { id: 4, name: 'Gynécologie', icon: 'female-outline', color: '#FF9500' },
-    { id: 5, name: 'Pédiatrie', icon: 'people-outline', color: '#AF52DE' },
-    { id: 6, name: 'Ophtalmologie', icon: 'eye-outline', color: '#5AC8FA' },
-  ];
 
   const quickActions = [
     { id: 1, title: 'Prendre RDV', subtitle: 'Réserver en ligne', icon: 'calendar-outline', color: '#007AFF' },
@@ -54,87 +171,144 @@ export default function PatientHomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Barre de recherche */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={20} color="#8E8E93" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Rechercher un médecin ou une spécialité..."
-              placeholderTextColor="#6B7280"
-              value={query}
-              onChangeText={onSearch}
-            />
-          </View>
-          {(loading || results.length > 0) && (
-            <View style={styles.searchResultsBox}>
-              {loading ? (
-                <ActivityIndicator size="small" color="#007AFF" />
-              ) : (
-                <View>
-                  {results.map((item) => (
-                    <TouchableOpacity
-                      key={item.idmedecin}
-                      style={styles.resultItem}
-                      onPress={() => router.push({ pathname: '/(patient)/screens/doctor-detail', params: { doctorId: item.idmedecin, doctor: JSON.stringify(item) } } as any)}
-                    >
-                      <Ionicons name="person-circle-outline" size={22} color="#8E8E93" />
-                      <View style={{ marginLeft: 8, flex: 1 }}>
-                        <Text style={styles.resultName}>{item.prenom} {item.nom}</Text>
-                        <Text style={styles.resultSubtitle}>{item.specialites?.map(s => s.nom).join(', ') || 'Médecin'}</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Bonjour</Text>
+          <Text style={styles.headerSubtitle}>Comment pouvons-nous vous aider aujourd'hui ?</Text>
+        </View>
+
+        {/* Prochaine consultation */}
+        <View style={styles.nextAppointmentSection}>
+          <View style={styles.nextAppointmentCard}>
+            <View style={styles.nextAppointmentHeader}>
+              <View style={styles.nextAppointmentIcon}>
+                <Ionicons name="calendar" size={24} color="#007AFF" />
+              </View>
+              <Text style={styles.nextAppointmentTitle}>Prochain rendez-vous</Text>
             </View>
-          )}
-        </View>
-
-        {/* Entrées rapides: Spécialité / Maux */}
-        <View style={styles.section}> 
-          <View style={styles.quickEntryRow}>
-            <TouchableOpacity style={[styles.quickEntryCard, { borderColor: '#007AFF' }]} onPress={() => router.push('/(patient)/screens/search')}>
-              <View style={[styles.quickEntryIcon, { backgroundColor: '#007AFF20' }]}>
-                <Ionicons name={"medkit-outline" as unknown as any} size={22} color="#007AFF" />
+            
+            {nextAppointment ? (
+              <View style={styles.nextAppointmentContent}>
+                <Text style={styles.doctorName}>{nextAppointment.medecin?.prenom} {nextAppointment.medecin?.nom}</Text>
+                <Text style={styles.appointmentDate}>{nextAppointmentDate}</Text>
+                {nextAppointment?.motif ? (
+                  <Text style={styles.appointmentMotif}>{nextAppointment.motif}</Text>
+                ) : null}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.quickEntryTitle}>Par spécialité</Text>
-                <Text style={styles.quickEntrySubtitle}>Cardiologie, Dermatologie, etc.</Text>
+            ) : (
+              <View style={styles.nextAppointmentContent}>
+                <Text style={styles.noAppointmentText}>Aucun rendez-vous à venir</Text>
+                <Text style={styles.noAppointmentSubtext}>Prenez rendez-vous avec un médecin</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
+            )}
+            
+            <TouchableOpacity 
+              style={styles.primaryActionButton} 
+              onPress={() => router.push('/(patient)/screens/search')}
+            >
+              <Text style={styles.primaryActionButtonText}>
+                {nextAppointment ? 'Prendre un autre RDV' : 'Prendre un rendez-vous'}
+              </Text>
             </TouchableOpacity>
-          </View>
-
-          <View style={styles.quickEntryRow}>
-            <TouchableOpacity style={[styles.quickEntryCard, { borderColor: '#10B981' }]} onPress={() => router.push('/(patient)/screens/search')}>
-              <View style={[styles.quickEntryIcon, { backgroundColor: '#10B98120' }]}>
-                <Ionicons name={"pulse-outline" as unknown as any} size={22} color="#10B981" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.quickEntryTitle}>Par mal / symptôme</Text>
-                <Text style={styles.quickEntrySubtitle}>Douleur thoracique, fièvre, etc.</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#8E8E93" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Entrées rapides seules */}
-        <View style={styles.section}>
-          <View style={styles.quickActionsGrid}>
-            {quickActions.slice(0,2).map((action) => (
+            
+            {nextAppointment && (
               <TouchableOpacity 
-                key={action.id} 
+                style={styles.secondaryActionButton} 
+                onPress={() => router.push('/(patient)/screens/appointments')}
+              >
+                <Text style={styles.secondaryActionButtonText}>Voir mes RDV</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Recherche */}
+        <View style={styles.searchSection}>
+          <View style={styles.searchCard}>
+            <View style={styles.searchHeader}>
+              <Ionicons name="search-outline" size={20} color="#8E8E93" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Rechercher un médecin, spécialité ou symptôme..."
+                placeholderTextColor="#8E8E93"
+                value={query}
+                onChangeText={onSearch}
+              />
+              {loading && <ActivityIndicator size="small" color="#007AFF" />}
+            </View>
+            
+            {(loading || results.length > 0) && (
+              <View style={styles.searchResults}>
+                {loading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#007AFF" />
+                    <Text style={styles.loadingText}>Recherche en cours...</Text>
+                  </View>
+                ) : (
+                  <View>
+                    {results.map((medecin, index) => (
+                      <TouchableOpacity
+                        key={medecin.idmedecin || index}
+                        style={styles.searchResultItem}
+                        onPress={() => {
+                          router.push({ 
+                            pathname: '/(patient)/screens/doctor-detail', 
+                            params: { 
+                              doctorId: medecin.idmedecin, 
+                              doctor: JSON.stringify(medecin) 
+                            } 
+                          } as any);
+                        }}
+                      >
+                        <View style={styles.searchResultIcon}>
+                          <Ionicons name="person-circle-outline" size={20} color="#007AFF" />
+                        </View>
+                        <View style={styles.searchResultContent}>
+                          <Text style={styles.searchResultName}>
+                            {medecin.prenom} {medecin.nom}
+                          </Text>
+                          <Text style={styles.searchResultSubtitle}>
+                            {medecin.specialites?.map((s: any) => s.nom).join(', ')}
+                          </Text>
+                          {medecin._context && (
+                            <Text style={styles.searchResultContext}>
+                              {medecin._context}
+                            </Text>
+                          )}
+                          <Text style={styles.searchResultType}>
+                            Médecin
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward-outline" size={16} color="#8E8E93" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Actions rapides */}
+        <View style={styles.quickActionsSection}>
+          <Text style={styles.sectionTitle}>Actions rapides</Text>
+          <View style={styles.quickActionsGrid}>
+            {quickActions.map((action) => (
+              <TouchableOpacity
+                key={action.id}
                 style={styles.quickActionCard}
                 onPress={() => {
                   if (action.id === 1) router.push('/(patient)/screens/search');
                   if (action.id === 2) router.push('/(patient)/screens/appointments');
+                  if (action.id === 3) router.push('/(patient)/screens/sante');
+                  if (action.id === 4) router.push('/(patient)/screens/profile');
                 }}
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: action.color + '20' }]}>
+                <View style={[styles.quickActionIcon, { backgroundColor: action.color + '15' }]}>
                   <Ionicons name={action.icon as any} size={24} color={action.color} />
                 </View>
                 <Text style={styles.quickActionTitle}>{action.title}</Text>
@@ -143,50 +317,6 @@ export default function PatientHomeScreen() {
             ))}
           </View>
         </View>
-
-        {/* Spécialités populaires */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Spécialités populaires</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.specialtiesScroll}>
-            {specialties.map((specialty) => (
-              <TouchableOpacity 
-                key={specialty.id} 
-                style={styles.specialtyCard}
-                onPress={() => router.push('/(patient)/screens/search')}
-              >
-                <View style={[styles.specialtyIcon, { backgroundColor: specialty.color + '20' }]}>
-                  <Ionicons name={specialty.icon as any} size={28} color={specialty.color} />
-                </View>
-                <Text style={styles.specialtyName}>{specialty.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Lien rapide RDV */}
-        <View style={styles.sectionLarge}>
-          <TouchableOpacity style={styles.appointmentCard} onPress={() => router.push('/(patient)/screens/appointments')}>
-            <View style={styles.appointmentIcon}>
-              <Ionicons name="calendar-outline" size={24} color="#007AFF" />
-            </View>
-            <View style={styles.appointmentInfo}>
-              <Text style={styles.appointmentTitle}>Prendre un rendez-vous</Text>
-              <Text style={styles.appointmentSpecialty}>Rechercher un professionnel et choisir un créneau</Text>
-            </View>
-            <Ionicons name="chevron-forward-outline" size={20} color="#007AFF" />
-          </TouchableOpacity>
-        </View>
-
-
-        {/* À propos minimal */}
-        <View style={styles.section}>
-          <View style={styles.aboutCard}>
-            <Ionicons name="information-circle-outline" size={22} color="#8E8E93" />
-            <Text style={styles.aboutText}>SantéAfrik: vos RDV et documents médicaux, au même endroit.</Text>
-          </View>
-        </View>
-
-        <View style={styles.footerSpacer} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -195,108 +325,232 @@ export default function PatientHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F2F2F7', // iOS System Gray 6
   },
-  searchContainer: {
-    padding: 16,
-    backgroundColor: 'white',
+  scrollContent: {
+    paddingBottom: 40,
   },
-  searchBar: {
+  
+  // Header
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 32,
+  },
+  headerTitle: {
+    fontSize: 34,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  headerSubtitle: {
+    fontSize: 17,
+    color: '#8E8E93',
+    fontWeight: '400',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  // Next Appointment Section
+  nextAppointmentSection: {
+    paddingHorizontal: 24,
+    marginBottom: 32,
+  },
+  nextAppointmentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20, // Gros coins arrondis iOS
+    padding: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  nextAppointmentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    marginBottom: 20,
   },
-  searchResultsBox: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    marginTop: 8,
-    padding: 8,
+  nextAppointmentIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#007AFF15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  nextAppointmentTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  nextAppointmentContent: {
+    marginBottom: 24,
+  },
+  doctorName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  appointmentDate: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#007AFF',
+    marginBottom: 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  appointmentMotif: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  noAppointmentText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#8E8E93',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  noAppointmentSubtext: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  primaryActionButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    marginBottom: 12,
+  },
+  primaryActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  secondaryActionButton: {
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     borderWidth: 1,
     borderColor: '#E5E5EA',
   },
-  resultItem: {
+  secondaryActionButtonText: {
+    color: '#007AFF',
+    fontSize: 17,
+    fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  // Search Section
+  searchSection: {
+    paddingHorizontal: 24,
+    marginBottom: 32,
+  },
+  searchCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  searchHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-  },
-  resultName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  resultSubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
-    fontSize: 14,
-    color: '#000',
+    fontSize: 17,
+    color: '#000000',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
-  welcomeSection: {
-    padding: 16,
-    backgroundColor: 'white',
-    marginTop: 8,
+  searchResults: {
+    marginTop: 16,
   },
-  welcomeTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 4,
-  },
-  welcomeSubtitle: {
-    fontSize: 16,
-    color: '#8E8E93',
-  },
-  section: {
-    marginTop: 32,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  sectionLarge: {
-    marginTop: 40,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  quickEntryRow: {
-    marginBottom: 16,
-  },
-  quickEntryCard: {
+  loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
+    justifyContent: 'center',
+    paddingVertical: 20,
   },
-  quickEntryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  loadingText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  searchResultIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F2F2F7',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  quickEntryTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
+  searchResultContent: {
+    flex: 1,
   },
-  quickEntrySubtitle: {
+  searchResultName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 2,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  searchResultSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginBottom: 2,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  searchResultContext: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#FF9500',
+    fontWeight: '500',
+    fontStyle: 'italic',
+    marginBottom: 2,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  searchResultType: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  // Quick Actions Section
+  quickActionsSection: {
+    paddingHorizontal: 24,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 16,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 20,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   quickActionsGrid: {
     flexDirection: 'row',
@@ -304,15 +558,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   quickActionCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
     width: '48%',
-    marginBottom: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    marginBottom: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -322,148 +575,18 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   quickActionTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#000',
-    textAlign: 'center',
+    color: '#000000',
     marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   quickActionSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#8E8E93',
-    textAlign: 'center',
-  },
-  specialtiesScroll: {
-    marginHorizontal: -16,
-  },
-  specialtyCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-    width: 150,
-    height: 150,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-    marginBottom: 16,
-  },
-  specialtyIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  specialtyName: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#000',
-    textAlign: 'center',
-  },
-  appointmentCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  appointmentIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#007AFF20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  appointmentInfo: {
-    flex: 1,
-  },
-  appointmentTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 2,
-  },
-  appointmentSpecialty: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 2,
-  },
-  appointmentDate: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
-  },
-  appointmentButton: {
-    padding: 8,
-  },
-  tipCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tipIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FF950020',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  tipContent: {
-    flex: 1,
-  },
-  tipTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
-  },
-  tipText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    lineHeight: 20,
-  },
-  aboutCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  aboutText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-  },
-  footerSpacer: {
-    height: 32,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
 });

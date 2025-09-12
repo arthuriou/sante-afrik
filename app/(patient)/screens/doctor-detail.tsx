@@ -163,10 +163,10 @@ export default function PatientDoctorDetailScreen() {
                 const timeLabel = new Date(slot.debut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const isSelected = selectedTime === slot.idcreneau;
                 return (
-                  <TouchableOpacity
+              <TouchableOpacity
                     key={slot.idcreneau}
-                    style={[
-                      styles.timeSlot,
+                style={[
+                  styles.timeSlot,
                       !slot.disponible && styles.timeSlotUnavailable,
                       isSelected && styles.timeSlotSelected,
                     ]}
@@ -177,17 +177,17 @@ export default function PatientDoctorDetailScreen() {
                       setSelectedEnd(slot.fin);
                     }}
                     disabled={!slot.disponible}
-                  >
-                    <Text
-                      style={[
-                        styles.timeSlotText,
+              >
+                <Text
+                  style={[
+                    styles.timeSlotText,
                         !slot.disponible && styles.timeSlotTextUnavailable,
                         isSelected && styles.timeSlotTextSelected,
-                      ]}
-                    >
+                  ]}
+                >
                       {timeLabel}
-                    </Text>
-                  </TouchableOpacity>
+                </Text>
+              </TouchableOpacity>
                 );
               })
             )}
