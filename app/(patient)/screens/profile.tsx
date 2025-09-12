@@ -4,16 +4,18 @@ import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { API_BASE_URL, apiService, User } from '../../../services/api';
 
@@ -23,6 +25,7 @@ export default function PatientProfileScreen() {
   const [locationEnabled, setLocationEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+  const [viewerVisible, setViewerVisible] = useState(false);
 
   type MenuAction = 'navigate' | 'toggle' | 'logout';
   interface MenuItem {
@@ -82,21 +85,9 @@ export default function PatientProfileScreen() {
       const nameGuess = (uri.split('/').pop() || `photo_${Date.now()}.jpg`).replace(/\?.*$/, '');
       const typeGuess = (asset as any).mimeType || 'image/jpeg';
 
-      console.log('🔍 DEBUG UPLOAD:');
-      console.log('URI:', uri);
-      console.log('Name:', nameGuess);
-      console.log('Type:', typeGuess);
-
-      const form = new FormData();
-      // @ts-ignore: React Native file type
-      form.append('file', { uri, name: nameGuess, type: typeGuess });
-
-      console.log('FormData créé, envoi...');
-      const resp = await apiService.updateProfilePhoto(form);
-      console.log('✅ Réponse reçue:', resp);
-      
-      if ((resp as any)?.data?.user) {
-        setUser((resp as any).data.user);
+      const resp = await apiService.updateProfilePhotoFromAsset({ uri, name: nameGuess, type: typeGuess });
+      if (resp?.data?.user) {
+        setUser(resp.data.user);
       } else {
         await loadProfile();
       }
@@ -297,20 +288,46 @@ export default function PatientProfileScreen() {
         {/* En-tête du profil */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            {user?.photoprofil ? (
-              <Image
-                source={{ uri: user.photoprofil.startsWith('http') ? user.photoprofil : `${API_BASE_URL}${user.photoprofil}` }}
-                style={styles.avatarImage}
-              />
-            ) : (
-              <View style={styles.avatar}>
-                <Ionicons name="person" size={40} color="#8E8E93" />
-              </View>
-            )}
+            <Pressable onPress={() => user?.photoprofil && setViewerVisible(true)}>
+              {user?.photoprofil ? (
+                <Image
+                  source={{ uri: user.photoprofil.startsWith('http') ? user.photoprofil : `${API_BASE_URL}${user.photoprofil}` }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <View style={styles.avatar}>
+                  <Ionicons name="person" size={40} color="#8E8E93" />
+                </View>
+              )}
+            </Pressable>
             <TouchableOpacity style={styles.editAvatarButton} onPress={handlePickAndUploadPhoto}>
               <Ionicons name="camera" size={16} color="white" />
             </TouchableOpacity>
           </View>
+      <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
+        <View style={styles.viewerBackdrop}>
+          <View style={styles.viewerHeader}>
+            <TouchableOpacity onPress={() => setViewerVisible(false)} style={styles.headerIconBtn}>
+              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.viewerTitle}>Photo de profil</Text>
+            <TouchableOpacity onPress={handlePickAndUploadPhoto} style={styles.headerIconBtn}>
+              <Ionicons name="create-outline" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.viewerContainer}>
+            {user?.photoprofil ? (
+              <Image
+                resizeMode="contain"
+                source={{ uri: user.photoprofil.startsWith('http') ? user.photoprofil : `${API_BASE_URL}${user.photoprofil}` }}
+                style={styles.viewerImage}
+              />
+            ) : (
+              <Text style={styles.viewerPlaceholder}>Aucune photo de profil</Text>
+            )}
+          </View>
+        </View>
+      </Modal>
           
           <Text style={styles.userName}>
             {user ? `${user.prenom} ${user.nom}` : 'Chargement...'}
@@ -398,6 +415,47 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  viewerBackdrop: {
+    flex: 1,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  viewerHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingTop: 8,
+  },
+  headerIconBtn: {
+    padding: 10,
+  },
+  viewerTitle: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'left',
+  },
+  viewerContainer: {
+    width: '100%',
+    height: '80%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  viewerImage: {
+    width: '100%',
+    height: '85%',
+  },
+  viewerPlaceholder: {
+    color: '#9CA3AF',
+    fontSize: 14,
   },
   userName: {
     fontSize: 24,

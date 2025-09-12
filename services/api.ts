@@ -129,6 +129,26 @@ export interface Creneau {
   disponible: boolean;
 }
 
+// Dossier médical
+export interface DossierMedical {
+  iddossier: string;
+  patient_id: string;
+  datecreation: string;
+  datemaj?: string | null;
+}
+
+export interface DocumentMedical {
+  iddocument: string;
+  dossier_id: string;
+  nom: string;
+  type: string;
+  url: string;
+  mimetype: string;
+  taillekb: number;
+  dateupload: string;
+  ispublic: boolean;
+}
+
 // Service API générique
 class ApiService {
   private token: string | null = null;
@@ -178,6 +198,28 @@ class ApiService {
         return Promise.reject(error);
       }
     );
+  }
+
+  private async postMultipart<T = any>(path: string, formData: FormData): Promise<T> {
+    // Utiliser fetch pour une meilleure compatibilité RN sur multipart
+    await this.ensureCachedTokens();
+    const url = `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: this.token ? `Bearer ${this.token}` : '',
+        Accept: 'application/json',
+      },
+      body: formData,
+    } as any);
+    const text = await response.text();
+    let json: any = null;
+    try { json = text ? JSON.parse(text) : null; } catch {}
+    if (!response.ok) {
+      const message = (json && (json.error || json.message)) || `HTTP ${response.status}`;
+      throw new Error(message);
+    }
+    return (json as T) ?? ({} as T);
   }
 
   setToken(token: string) {
@@ -421,25 +463,37 @@ class ApiService {
     console.log('🚀 API Upload - FormData:', photoData);
 
     try {
-      const response = await this.client.post('/api/auth/profile/photo', photoData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        transformRequest: (data) => data, // Ne pas sérialiser le FormData
-      });
-
-      console.log('🚀 API Upload - Status:', response.status);
-      console.log('🚀 API Upload - Succès:', response.data);
-      return response.data as { message: string; data: { url: string; user: User; storage: string } };
+      const data = await this.postMultipart<{ message: string; data: { url: string; user: User; storage: string } }>(
+        '/api/auth/profile/photo',
+        photoData
+      );
+      console.log('🚀 API Upload - Succès:', data);
+      return data;
     } catch (error: any) {
-      console.log('🚀 API Upload - Erreur:', error.response?.data || error.message);
-      if (error.response) {
-        const data = error.response.data as any;
-        const message = (data && (data.error || data.message)) || `HTTP ${error.response.status}`;
-        throw new Error(message);
-      }
-      throw new Error(error.message || 'Erreur upload');
+      console.log('🚀 API Upload - Erreur:', error.message);
+      throw error;
     }
+  }
+
+  async updateProfilePhotoFromAsset(file: { uri: string; name: string; type: string }) {
+    const fieldCandidates = ['file', 'photo', 'image'];
+    let lastError: any = null;
+    for (const key of fieldCandidates) {
+      try {
+        const fd = new FormData();
+        // @ts-ignore RN File
+        fd.append(key, { uri: file.uri, name: file.name, type: file.type } as any);
+        const data = await this.postMultipart<{ message: string; data: { url: string; user: User; storage: string } }>(
+          '/api/auth/profile/photo',
+          fd
+        );
+        return data;
+      } catch (e: any) {
+        lastError = e;
+        // Essayer la clé suivante
+      }
+    }
+    throw lastError || new Error('Échec upload photo');
   }
 
   // Médecins
@@ -597,6 +651,28 @@ class ApiService {
   // Cabinets
   async getCabinets() {
     return this.request<{ message: string; data: Cabinet[] }>('/api/cabinets');
+  }
+
+  // Dossier médical
+  async getOrCreateDossier() {
+    return this.request<{ dossier: DossierMedical; created: boolean }>(`/api/dossier-medical/dossier/me`);
+  }
+
+  async listDocuments(dossierId: string) {
+    return this.request<DocumentMedical[]>(`/api/dossier-medical/${dossierId}/documents`);
+  }
+
+  async addDocument(form: FormData) {
+    const doc = await this.postMultipart<DocumentMedical>(`/api/dossier-medical/documents`, form);
+    return doc;
+  }
+
+  async updateDocument(id: string, data: Partial<Pick<DocumentMedical, 'nom' | 'url'>>) {
+    return this.request(`/api/dossier-medical/documents/${id}`, { method: 'PATCH', body: data });
+  }
+
+  async deleteDocument(id: string) {
+    return this.request(`/api/dossier-medical/documents/${id}`, { method: 'DELETE' });
   }
 }
 
