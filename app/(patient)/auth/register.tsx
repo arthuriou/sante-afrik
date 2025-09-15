@@ -71,8 +71,8 @@ export default function PatientRegisterScreen() {
         taille: 170, // Par défaut, à modifier selon les besoins
       });
 
-      Alert.alert(
-        'Inscription réussie',
+        Alert.alert(
+          'Inscription réussie',
         'Un code de vérification a été envoyé à votre adresse email. Veuillez vérifier votre boîte de réception.',
         [{ 
           text: 'OK', 

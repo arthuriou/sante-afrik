@@ -2,15 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Linking,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { apiService, Patient } from '../../../services/api';
 
@@ -19,6 +20,7 @@ export default function MedecinPatientsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'new' | 'old'>('all');
 
   // Charger les patients au montage
   useEffect(() => {
@@ -43,14 +45,40 @@ export default function MedecinPatientsScreen() {
     }
   };
 
-  const filteredPatients = patients.filter(patient =>
-    `${patient.prenom} ${patient.nom}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    patient.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    patient.telephone?.includes(searchQuery)
-  );
+  const isNewPatient = (p: Patient): boolean => {
+    const anyP: any = p as any;
+    const dc = anyP?.datecreation || anyP?.createdAt || anyP?.created_at;
+    if (dc) {
+      const created = new Date(dc).getTime();
+      const days = (Date.now() - created) / (1000 * 60 * 60 * 24);
+      return days <= 30; // nouvel inscrit dans les 30 derniers jours
+    }
+    // fallback si pas de date: considérer "nouveau" si actif et téléphone présent
+    return Boolean(p.actif && p.telephone);
+  };
+
+  const filteredPatients = patients
+    .filter(patient =>
+      `${patient.prenom} ${patient.nom}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patient.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patient.telephone?.includes(searchQuery)
+    )
+    .filter(p => filter === 'all' ? true : filter === 'new' ? isNewPatient(p) : !isNewPatient(p));
+
+  const handleCall = (phone?: string) => {
+    if (!phone) { Alert.alert('Info', 'Numéro indisponible'); return; }
+    Linking.openURL(`tel:${phone}`);
+  };
+
+  const handleSms = (phone?: string) => {
+    if (!phone) { Alert.alert('Info', 'Numéro indisponible'); return; }
+    Linking.openURL(`sms:${phone}`);
+  };
 
   const renderPatient = ({ item }: { item: Patient }) => (
-    <TouchableOpacity style={styles.patientCard}>
+    <TouchableOpacity style={styles.patientCard} onPress={() => {
+      Alert.alert('Patient', `${item.prenom} ${item.nom}`);
+    }}>
       <View style={styles.patientHeader}>
         <View style={styles.patientInfo}>
           <Text style={styles.patientName}>{item.prenom} {item.nom}</Text>
@@ -61,16 +89,17 @@ export default function MedecinPatientsScreen() {
             }
           </Text>
         </View>
-        <View style={[
-          styles.statusBadge,
-          { backgroundColor: item.actif ? '#34C75920' : '#8E8E9320' }
-        ]}>
-          <Text style={[
-            styles.statusText,
-            { color: item.actif ? '#34C759' : '#8E8E93' }
-          ]}>
-            {item.actif ? 'Actif' : 'Inactif'}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {isNewPatient(item) && (
+            <View style={[styles.statusBadge, { backgroundColor: '#007AFF20' }]}>
+              <Text style={[styles.statusText, { color: '#007AFF' }]}>Nouveau</Text>
+        </View>
+          )}
+          <View style={[styles.statusBadge, { backgroundColor: item.actif ? '#34C75920' : '#8E8E9320' }]}>
+            <Text style={[styles.statusText, { color: item.actif ? '#34C759' : '#8E8E93' }]}>
+              {item.actif ? 'Actif' : 'Inactif'}
           </Text>
+          </View>
         </View>
       </View>
 
@@ -105,34 +134,20 @@ export default function MedecinPatientsScreen() {
       </View>
 
       <View style={styles.patientActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={async () => {
-            try {
-              const conv = await apiService.createOrGetPrivateConversation(item.idutilisateur || item.idpatient);
-              const conversationId = conv.data?.idconversation || (conv as any).data?.data?.idconversation;
-              if (conversationId) {
-                // Marquer lu côté ouverture (précaution) puis naviguer
-                try { await apiService.markConversationAsRead(conversationId); } catch {}
-                router.push({ pathname: '/(medecin)/screens/messages/[id]', params: { id: conversationId } } as any);
-              } else {
-                Alert.alert('Erreur', 'Conversation introuvable');
-              }
-            } catch (e: any) {
-              Alert.alert('Erreur', e.message || 'Impossible d’ouvrir la conversation');
-            }
-          }}
-        >
+        {/* Messages */}
+        <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/(medecin)/screens/messages' as any)}>
           <Ionicons name="chatbubble-outline" size={16} color="#34C759" />
-          <Text style={styles.actionButtonText}>Message</Text>
+          <Text style={styles.actionButtonText}>Messages</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.actionButton}>
+        {/* Appeler */}
+        <TouchableOpacity style={styles.actionButton} onPress={() => handleCall(item.telephone)}>
           <Ionicons name="call-outline" size={16} color="#34C759" />
           <Text style={styles.actionButtonText}>Appeler</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.actionButton}>
+        {/* RDV */}
+        <TouchableOpacity style={styles.actionButton} onPress={() => router.push('/(medecin)/screens/rendezvous' as any)}>
           <Ionicons name="calendar-outline" size={16} color="#34C759" />
           <Text style={styles.actionButtonText}>RDV</Text>
         </TouchableOpacity>
@@ -170,6 +185,33 @@ export default function MedecinPatientsScreen() {
             </TouchableOpacity>
           )}
         </View>
+      </View>
+
+      {/* Résumé iOS */}
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryNumber}>{patients.length}</Text>
+          <Text style={styles.summaryLabel}>Total</Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryNumber}>{patients.filter(isNewPatient).length}</Text>
+          <Text style={styles.summaryLabel}>Nouveaux</Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryNumber}>{patients.filter(p => !isNewPatient(p)).length}</Text>
+          <Text style={styles.summaryLabel}>Anciens</Text>
+        </View>
+      </View>
+
+      {/* Filtres */}
+      <View style={styles.filterRow}>
+        {(['all','new','old'] as const).map(key => (
+          <TouchableOpacity key={key} style={[styles.filterChip, filter===key && styles.filterChipActive]} onPress={() => setFilter(key)}>
+            <Text style={[styles.filterChipText, filter===key && styles.filterChipTextActive]}>
+              {key==='all' ? 'Tous' : key==='new' ? 'Nouveaux' : 'Anciens'}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Statistiques rapides */}
@@ -268,6 +310,15 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  summaryRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginTop: 6 },
+  summaryCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#F0F3F7' },
+  summaryNumber: { fontSize: 18, fontWeight: '700', color: '#000' },
+  summaryLabel: { fontSize: 12, color: '#8E8E93', marginTop: 2 },
+  filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 12 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#EAF2FF', borderRadius: 16 },
+  filterChipActive: { backgroundColor: '#007AFF' },
+  filterChipText: { color: '#0A2540', fontWeight: '600' },
+  filterChipTextActive: { color: '#FFFFFF' },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

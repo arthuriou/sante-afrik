@@ -3,12 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import {
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { apiService } from '../services/api';
 
@@ -23,7 +23,7 @@ export default function WelcomeScreen() {
         if (token) {
           const role = await AsyncStorage.getItem('userRole');
           if (role === 'MEDECIN') {
-            router.replace('/(medecin)/screens/dashboard');
+            router.replace('/(medecin)/screens/agenda');
           } else {
             router.replace('/(patient)/screens/home');
           }

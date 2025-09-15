@@ -2,23 +2,30 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    RefreshControl,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  RefreshControl,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { apiService, Conversation } from '../../../services/api';
+import { API_BASE_URL, apiService, Conversation, Patient } from '../../../services/api';
+import { bindMessagingRealtime, createSocket } from '../../../services/socket';
 
 export default function MedecinMessagesScreen() {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [socketReady, setSocketReady] = useState(false);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [search, setSearch] = useState('');
+  const [userPhotoById, setUserPhotoById] = useState<Record<string, string>>({});
 
   const loadConversations = async () => {
     try {
@@ -41,7 +48,39 @@ export default function MedecinMessagesScreen() {
 
   useEffect(() => {
     loadConversations();
+    // Précharger patients pour démarrer une conversation si liste vide
+    (async () => {
+      try {
+        const resp = await apiService.getPatients();
+        setPatients(resp.data || []);
+      } catch {}
+    })();
+    // Socket temps réel: rafraîchir la liste quand nouveau message
+    (async () => {
+      const socket = await createSocket();
+      bindMessagingRealtime(socket, {
+        onNewMessage: () => loadConversations(),
+      });
+      setSocketReady(true);
+    })();
   }, []);
+
+  const startPrivateConversation = async (participantUserId: string) => {
+    try {
+      const conv = await apiService.createOrGetPrivateConversation(participantUserId);
+      const conversationId = (conv as any)?.data?.idconversation || (conv as any)?.idconversation;
+      const id = conversationId || (conv as any)?.data?.data?.idconversation;
+      const finalId = id || conversationId;
+      if (finalId) {
+        try { await apiService.markConversationAsRead(finalId); } catch {}
+        router.push({ pathname: '/(medecin)/screens/messages/[id]', params: { id: String(finalId) } } as any);
+      } else {
+        Alert.alert('Erreur', 'Conversation introuvable');
+      }
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message || 'Impossible de créer la conversation');
+    }
+  };
 
   const openConversation = async (conversationId: string) => {
     try {
@@ -70,13 +109,29 @@ export default function MedecinMessagesScreen() {
     const lastMessage = item.dernier_message?.contenu || 'Aucun message';
     const timestamp = item.dernier_message?.dateEnvoi ? new Date(item.dernier_message.dateEnvoi).toLocaleDateString() : '';
     const hasUnread = item.nombre_messages_non_lus > 0;
+    const otherId = other?.utilisateur?.idutilisateur;
+    const photo = (otherId && userPhotoById[otherId]) ? userPhotoById[otherId] : undefined;
+    if (otherId && !userPhotoById[otherId]) {
+      // Chargement paresseux de la photo profil
+      (async () => {
+        try {
+          const resp = await apiService.getUserById(otherId);
+          const p = (resp as any)?.data?.photoprofil || resp?.data?.photoprofil;
+          if (p) setUserPhotoById(prev => ({ ...prev, [otherId]: p.startsWith('http') ? p : `${API_BASE_URL}${p}` }));
+        } catch {}
+      })();
+    }
 
     return (
       <TouchableOpacity style={styles.conversationCard} onPress={() => openConversation(item.idconversation)}>
         <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={24} color="#007AFF" />
-          </View>
+          {photo ? (
+            <Image source={{ uri: photo }} style={styles.avatarImg} />
+          ) : (
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={24} color="#007AFF" />
+            </View>
+          )}
           {hasUnread && <View style={styles.unreadBadge} />}
         </View>
 
@@ -113,7 +168,49 @@ export default function MedecinMessagesScreen() {
             <Text style={styles.loadingText}>Chargement des conversations...</Text>
           </View>
         ) : conversations.length === 0 ? (
-          renderEmptyState()
+          // Liste de patients pour démarrer une conversation
+          <View style={{ flex: 1 }}>
+            <View style={styles.searchBar}>
+              <Ionicons name="search-outline" size={20} color="#8E8E93" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Rechercher un patient..."
+                placeholderTextColor="#8E8E93"
+                value={search}
+                onChangeText={setSearch}
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')}>
+                  <Ionicons name="close-circle" size={20} color="#8E8E93" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <FlatList
+              data={patients.filter(p => `${p.prenom} ${p.nom}`.toLowerCase().includes(search.toLowerCase()))}
+              keyExtractor={(item) => item.idpatient}
+              ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+              contentContainerStyle={{ paddingBottom: 24, paddingTop: 8 }}
+              renderItem={({ item }) => {
+                const photo = (item as any).photoprofil as string | undefined;
+                const uri = photo ? (photo.startsWith('http') ? photo : `${API_BASE_URL}${photo}`) : undefined;
+                return (
+                  <TouchableOpacity style={styles.patientRow} onPress={() => startPrivateConversation((item as any).idutilisateur || item.idpatient)}>
+                    {uri ? (
+                      <Image source={{ uri }} style={styles.patientAvatarImg} />
+                    ) : (
+                      <View style={styles.patientAvatar}><Ionicons name="person" size={20} color="#007AFF" /></View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.patientName}>{item.prenom} {item.nom}</Text>
+                      <Text style={styles.patientMeta}>{item.telephone || item.email || ''}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#C7C7CC" />
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={renderEmptyState()}
+            />
+          </View>
         ) : (
           <FlatList
             data={conversations}
@@ -168,6 +265,28 @@ const styles = StyleSheet.create({
   conversationsList: {
     paddingBottom: 24,
   },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EAF2FF',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#000',
+  },
+  patientRow: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 12, borderRadius: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+  },
+  patientAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E5F0FF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  patientAvatarImg: { width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#E5F0FF' },
+  patientName: { fontSize: 16, fontWeight: '600', color: '#111827' },
+  patientMeta: { fontSize: 12, color: '#6B7280' },
   emptyState: {
     alignItems: 'center',
     marginTop: 80,
@@ -229,6 +348,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarImg: { width: 44, height: 44, borderRadius: 22 },
   unreadBadge: {
     position: 'absolute',
     right: -2,

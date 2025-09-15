@@ -46,7 +46,7 @@ export default function MedecinLoginScreen() {
       console.log('Données utilisateur stockées:', response.data.user);
 
       // Rediriger vers l'écran initial du groupe médecin
-      router.replace('/(medecin)/screens/dashboard' as any);
+      router.replace('/(medecin)/screens/agenda' as any);
     } catch (error: any) {
       // Gestion spécifique pour les comptes en attente de validation
       if (error.message && error.message.includes('attente') || error.message.includes('validation') || error.message.includes('PENDING')) {

@@ -546,6 +546,30 @@ class ApiService {
     }
   }
 
+  // Mise à jour profil médecin (numordre, expérience, bio, spécialités)
+  async updateProfileMedecin(data: {
+    numordre?: string;
+    experience?: number;
+    biographie?: string;
+    specialiteIds?: string[];
+  }) {
+    try {
+      const userDataRaw = await AsyncStorage.getItem('userData');
+      const userData = userDataRaw ? JSON.parse(userDataRaw) : null;
+      const userId = userData?.idutilisateur;
+      const body = userId ? { userId, ...data } : data;
+      return this.request<{ message: string; data?: User }>('/api/auth/profile/medecin', {
+        method: 'PATCH',
+        body,
+      });
+    } catch {
+      return this.request<{ message: string; data?: User }>('/api/auth/profile/medecin', {
+        method: 'PATCH',
+        body: data,
+      });
+    }
+  }
+
   async updateProfilePhoto(photoData: FormData) {
     console.log('🚀 API Upload - URL:', `${API_BASE_URL}/api/auth/profile/photo`);
     console.log('🚀 API Upload - Token présent:', !!this.token);

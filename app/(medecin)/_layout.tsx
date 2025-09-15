@@ -9,7 +9,7 @@ export default function MedecinLayout() {
   useEffect(() => {
     const onBackPress = () => {
       if (pathname?.startsWith('/(medecin)')) {
-        if (pathname.startsWith('/(medecin)/screens/dashboard') || pathname === '/(medecin)') {
+        if (pathname.startsWith('/(medecin)/screens/agenda') || pathname === '/(medecin)') {
           Alert.alert('Quitter', "Voulez-vous quitter l'application ?", [
             { text: 'Annuler', style: 'cancel' },
             { text: 'Oui', style: 'destructive', onPress: () => BackHandler.exitApp() },
@@ -70,18 +70,19 @@ export default function MedecinLayout() {
     >
       {/* Masquer les sous-pages pour ne pas polluer les onglets */}
       <Tabs.Screen name="auth" options={{ href: null }} />
-      {/* Dashboard supprimé de la tab bar */}
-      <Tabs.Screen name="screens/dashboard" options={{ href: null }} />
+      {/* Dashboard supprimé */}
       {/* Détails messages masqués */}
       <Tabs.Screen name="screens/messages/[id]" options={{ href: null }} />
       {/* Détails rendezvous masqués */}
       <Tabs.Screen name="screens/rendezvous/[id]" options={{ href: null }} />
+      {/* Modal edit profil médecin masqué */}
+      <Tabs.Screen name="modals/edit-profile" options={{ href: null }} />
       <Tabs.Screen
         name="screens/patients"
         options={{
           title: "Patients",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
+            <Ionicons name="people" size={size} color={color} />
           ),
           headerTitle: "Mes patients",
         }}
@@ -91,7 +92,7 @@ export default function MedecinLayout() {
         options={{
           title: "Messages",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles-outline" size={size} color={color} />
+            <Ionicons name="chatbubbles" size={size} color={color} />
           ),
           headerTitle: "Messages",
         }}
@@ -101,7 +102,7 @@ export default function MedecinLayout() {
         options={{
           title: "Agenda",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
+            <Ionicons name="calendar" size={size} color={color} />
           ),
           headerTitle: "Agenda",
         }}
@@ -111,7 +112,7 @@ export default function MedecinLayout() {
         options={{
           title: "Rendez-vous",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-number-outline" size={size} color={color} />
+            <Ionicons name="calendar-number" size={size} color={color} />
           ),
           headerTitle: "Mes rendez-vous",
         }}
@@ -122,7 +123,7 @@ export default function MedecinLayout() {
         options={{
           title: "Profil",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+            <Ionicons name="person" size={size} color={color} />
           ),
           headerTitle: "Mon profil",
         }}
