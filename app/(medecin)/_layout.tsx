@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, usePathname } from 'expo-router';
 import { useEffect } from 'react';
-import { Alert, BackHandler } from 'react-native';
+import { Alert, BackHandler, Platform } from 'react-native';
 
 export default function MedecinLayout() {
   const pathname = usePathname();
@@ -28,28 +28,54 @@ export default function MedecinLayout() {
       backBehavior="history"
       initialRouteName="screens/agenda"
       screenOptions={{
-        tabBarActiveTintColor: "#2E7CF6",
+        tabBarActiveTintColor: "#007AFF",
         tabBarInactiveTintColor: "#8E8E93",
         tabBarStyle: {
-          backgroundColor: "white",
-          borderTopWidth: 1,
+          backgroundColor: "#FFFFFF",
+          borderTopWidth: 0.5,
           borderTopColor: "#E5E5EA",
-          paddingBottom: 5,
-          paddingTop: 5,
-          height: 60,
+          paddingBottom: 20,
+          paddingTop: 8,
+          height: 88,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+          marginTop: 4,
+        },
+        tabBarIconStyle: {
+          marginTop: 4,
         },
         headerStyle: {
-          backgroundColor: "#2E7CF6",
+          backgroundColor: "#007AFF",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 4,
         },
-        headerTintColor: "white",
+        headerTintColor: "#FFFFFF",
         headerTitleStyle: {
-          fontWeight: "bold",
+          fontWeight: "700",
+          fontSize: 17,
+          color: "#FFFFFF",
+          fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
         },
       }}
     >
       {/* Masquer les sous-pages pour ne pas polluer les onglets */}
       <Tabs.Screen name="auth" options={{ href: null }} />
+      {/* Dashboard supprimé de la tab bar */}
       <Tabs.Screen name="screens/dashboard" options={{ href: null }} />
+      {/* Détails messages masqués */}
+      <Tabs.Screen name="screens/messages/[id]" options={{ href: null }} />
+      {/* Détails rendezvous masqués */}
+      <Tabs.Screen name="screens/rendezvous/[id]" options={{ href: null }} />
       <Tabs.Screen
         name="screens/patients"
         options={{
