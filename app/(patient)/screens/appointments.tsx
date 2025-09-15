@@ -27,7 +27,7 @@ export default function PatientAppointmentsScreen() {
       const userData = userDataRaw ? JSON.parse(userDataRaw) : null;
       const patientId = userData?.patient?.idpatient || userData?.idutilisateur;
       if (!patientId) return;
-      const resp = await apiService.getRendezVousPatient(patientId);
+      const resp = await apiService.getRendezVousPatient();
       setAllAppointments(resp.data || []);
     } finally {
       setLoading(false);
@@ -134,7 +134,7 @@ export default function PatientAppointmentsScreen() {
             <View style={styles.motifRow}>
               <Ionicons name="document-text-outline" size={16} color="#8E8E93" />
               <Text style={styles.motifText}>{item.motif}</Text>
-            </View>
+        </View>
           )}
       </View>
 
@@ -168,7 +168,7 @@ export default function PatientAppointmentsScreen() {
               style={styles.cancelButton} 
               onPress={async () => {
                 try {
-                  await apiService.cancelRendezVous(item.idrendezvous);
+                  await apiService.annulerRendezVous(item.idrendezvous);
                   await loadAppointments();
                 } catch {}
               }}
@@ -177,7 +177,7 @@ export default function PatientAppointmentsScreen() {
               <Text style={styles.cancelButtonText}>Annuler</Text>
         </TouchableOpacity>
           )}
-        </View>
+      </View>
     </View>
   );
   };

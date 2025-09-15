@@ -32,17 +32,14 @@ export default function AppointmentMotifScreen() {
           dateheure,
           duree,
           motif: motif || 'Consultation',
-          creneau_id: params.creneauId as string,
-        });
+        } as any);
       } else {
         await apiService.createRendezVous({
-          patient_id: patientId,
           medecin_id: params.doctorId as string,
           dateheure,
           duree,
           motif: motif || 'Consultation',
-          creneau_id: params.creneauId as string,
-        });
+        } as any);
       }
       Alert.alert('Succès', 'Rendez-vous créé avec succès');
       router.replace('/(patient)/screens/appointments' as any);

@@ -2,15 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Dimensions,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { apiService, Medecin } from '../../../services/api';
 
@@ -43,8 +43,7 @@ export default function PatientDoctorDetailScreen() {
         const today = new Date();
         const dateDebut = today.toISOString().slice(0, 10);
         const in7 = new Date(today.getTime() + 7 * 86400000);
-        const dateFin = in7.toISOString().slice(0, 10);
-        const resp = await apiService.getCreneauxDisponibles(doctorId, dateDebut, dateFin);
+        const resp = await apiService.getCreneauxDisponibles(doctorId, dateDebut);
         setCreneaux(resp.data || []);
       } catch (e) {
         setCreneaux([]);

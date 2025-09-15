@@ -1,17 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Alert,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    FlatList,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { apiService, Specialite } from '../../../services/api';
 
@@ -31,6 +31,7 @@ export default function DoctorRegisterScreen() {
   const [specialites, setSpecialites] = useState<Specialite[]>([]);
   const [selectedSpecialites, setSelectedSpecialites] = useState<string[]>([]);
   const [showSpecialitesModal, setShowSpecialitesModal] = useState(false);
+  const [loadingSpecialites, setLoadingSpecialites] = useState(false);
 
   // Charger les spécialités au montage du composant
   useEffect(() => {
@@ -39,10 +40,26 @@ export default function DoctorRegisterScreen() {
 
   const loadSpecialites = async () => {
     try {
-      const response = await apiService.getSpecialites();
-      setSpecialites(response.data || []);
+      setLoadingSpecialites(true);
+      console.log('Chargement des spécialités depuis l\'API publique...');
+      
+      // Utiliser l'endpoint public qui ne nécessite pas d'authentification
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/specialites/specialites`);
+      const data = await response.json();
+      
+      console.log('Réponse spécialités:', data);
+      
+      if (data.data && Array.isArray(data.data)) {
+        setSpecialites(data.data);
+      } else {
+        console.error('Format de réponse inattendu:', data);
+        Alert.alert('Erreur', 'Format de réponse inattendu de l\'API');
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des spécialités:', error);
+      Alert.alert('Erreur', 'Impossible de charger les spécialités. Veuillez réessayer.');
+    } finally {
+      setLoadingSpecialites(false);
     }
   };
 
@@ -53,8 +70,8 @@ export default function DoctorRegisterScreen() {
   const toggleSpecialite = (specialiteId: string) => {
     setSelectedSpecialites(prev => 
       prev.includes(specialiteId) 
-        ? prev.filter(id => id !== specialiteId)
-        : [...prev, specialiteId]
+        ? [] // Désélectionner si déjà sélectionnée
+        : [specialiteId] // Sélectionner seulement cette spécialité
     );
   };
 
@@ -109,30 +126,27 @@ export default function DoctorRegisterScreen() {
     
     try {
       await apiService.registerDoctor({
-        email: formData.email.trim(),
-        motdepasse: formData.motdepasse,
-        nom: formData.nom.trim(),
-        prenom: formData.prenom.trim(),
-        telephone: formData.telephone.trim(),
-        numordre: formData.numordre.trim(),
-        experience: Number(formData.experience),
-        biographie: formData.biographie.trim(),
-        specialiteIds: selectedSpecialites,
+          email: formData.email.trim(),
+          motdepasse: formData.motdepasse,
+          nom: formData.nom.trim(),
+          prenom: formData.prenom.trim(),
+          telephone: formData.telephone.trim(),
+          numordre: formData.numordre.trim(),
+          experience: Number(formData.experience),
+          biographie: formData.biographie.trim(),
+        specialiteIds: selectedSpecialites, // Envoyer les noms des spécialités
       });
 
-      Alert.alert(
-        'Inscription réussie',
-        'Un code de vérification a été envoyé à votre adresse email. Veuillez vérifier votre boîte de réception.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.push({
-              pathname: '/(auth)/medecin/verify-otp',
-              params: { email: formData.email.trim() }
-            }),
-          },
-        ]
-      );
+         Alert.alert(
+           'Inscription réussie',
+        'Votre compte médecin a été créé avec succès. Votre compte est en attente de validation par un administrateur. Vous recevrez un email de confirmation une fois votre compte validé.',
+           [
+             {
+               text: 'OK',
+               onPress: () => router.push('/(auth)/medecin/login'),
+             },
+           ]
+         );
     } catch (error: any) {
       Alert.alert('Erreur d\'inscription', error.message || 'Une erreur est survenue');
     } finally {
@@ -282,8 +296,13 @@ export default function DoctorRegisterScreen() {
 
             <TouchableOpacity
               style={styles.specialitesButton}
-              onPress={() => setShowSpecialitesModal(true)}
-              disabled={isLoading}
+              onPress={() => {
+                if (specialites.length === 0 && !loadingSpecialites) {
+                  loadSpecialites();
+                }
+                setShowSpecialitesModal(true);
+              }}
+              disabled={isLoading || loadingSpecialites}
             >
               <Ionicons name="medical" size={20} color="#718096" style={styles.specialitesIcon} />
               <View style={styles.specialitesContent}>
@@ -291,9 +310,11 @@ export default function DoctorRegisterScreen() {
                   Spécialités {selectedSpecialites.length > 0 && `(${selectedSpecialites.length})`}
                 </Text>
                 <Text style={styles.specialitesSubtext}>
-                  {selectedSpecialites.length === 0 
-                    ? 'Sélectionnez vos spécialités (optionnel)' 
-                    : `${selectedSpecialites.length} spécialité(s) sélectionnée(s)`
+                  {loadingSpecialites 
+                    ? 'Chargement des spécialités...'
+                    : selectedSpecialites.length === 0 
+                      ? 'Sélectionnez votre spécialité (optionnel)' 
+                      : specialites.find(s => s.idspecialite === selectedSpecialites[0])?.nom || selectedSpecialites[0]
                   }
                 </Text>
               </View>
@@ -330,7 +351,7 @@ export default function DoctorRegisterScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Sélectionner vos spécialités</Text>
+              <Text style={styles.modalTitle}>Sélectionner votre spécialité</Text>
               <TouchableOpacity
                 onPress={() => setShowSpecialitesModal(false)}
                 style={styles.modalCloseButton}
@@ -339,37 +360,55 @@ export default function DoctorRegisterScreen() {
               </TouchableOpacity>
             </View>
 
-            <FlatList
-              data={specialites}
-              keyExtractor={(item) => item.idspecialite}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.specialiteItem,
-                    selectedSpecialites.includes(item.idspecialite) && styles.specialiteItemSelected
-                  ]}
-                  onPress={() => toggleSpecialite(item.idspecialite)}
+            {loadingSpecialites ? (
+              <View style={styles.loadingContainer}>
+                <Ionicons name="refresh" size={32} color="#718096" />
+                <Text style={styles.loadingText}>Chargement des spécialités...</Text>
+              </View>
+            ) : specialites.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="medical-outline" size={32} color="#718096" />
+                <Text style={styles.emptyText}>Aucune spécialité disponible</Text>
+                <TouchableOpacity 
+                  style={styles.retryButton}
+                  onPress={loadSpecialites}
                 >
-                  <View style={styles.specialiteItemContent}>
-                    <Text style={[
-                      styles.specialiteItemName,
-                      selectedSpecialites.includes(item.idspecialite) && styles.specialiteItemNameSelected
-                    ]}>
-                      {item.nom}
-                    </Text>
-                    {item.description && (
-                      <Text style={styles.specialiteItemDescription}>
-                        {item.description}
-                      </Text>
-                    )}
-                  </View>
-                  {selectedSpecialites.includes(item.idspecialite) && (
-                    <Ionicons name="checkmark-circle" size={24} color="#34C759" />
-                  )}
+                  <Text style={styles.retryButtonText}>Réessayer</Text>
                 </TouchableOpacity>
-              )}
-              style={styles.specialitesList}
-            />
+              </View>
+            ) : (
+              <FlatList
+                data={specialites}
+                keyExtractor={(item) => item.idspecialite}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.specialiteItem,
+                      selectedSpecialites.includes(item.idspecialite) && styles.specialiteItemSelected
+                    ]}
+                    onPress={() => toggleSpecialite(item.idspecialite)}
+                  >
+                    <View style={styles.specialiteItemContent}>
+                      <Text style={[
+                        styles.specialiteItemName,
+                        selectedSpecialites.includes(item.idspecialite) && styles.specialiteItemNameSelected
+                      ]}>
+                        {item.nom}
+                      </Text>
+                      {item.description && (
+                        <Text style={styles.specialiteItemDescription}>
+                          {item.description}
+                        </Text>
+                      )}
+                    </View>
+                    {selectedSpecialites.includes(item.idspecialite) && (
+                      <Ionicons name="checkmark-circle" size={24} color="#34C759" />
+                    )}
+                  </TouchableOpacity>
+                )}
+                style={styles.specialitesList}
+              />
+            )}
 
             <View style={styles.modalFooter}>
               <TouchableOpacity
@@ -627,5 +666,41 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Styles pour les états de chargement et vide
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#718096',
+    marginTop: 12,
+    fontFamily: 'System',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#718096',
+    marginTop: 12,
+    marginBottom: 20,
+    fontFamily: 'System',
+  },
+  retryButton: {
+    backgroundColor: '#34C759',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'System',
   },
 });

@@ -26,9 +26,9 @@ export default function MedecinLayout() {
   return (
     <Tabs
       backBehavior="history"
-      initialRouteName="screens/dashboard"
+      initialRouteName="screens/agenda"
       screenOptions={{
-        tabBarActiveTintColor: "#34C759",
+        tabBarActiveTintColor: "#2E7CF6",
         tabBarInactiveTintColor: "#8E8E93",
         tabBarStyle: {
           backgroundColor: "white",
@@ -39,7 +39,7 @@ export default function MedecinLayout() {
           height: 60,
         },
         headerStyle: {
-          backgroundColor: "#34C759",
+          backgroundColor: "#2E7CF6",
         },
         headerTintColor: "white",
         headerTitleStyle: {
@@ -49,16 +49,7 @@ export default function MedecinLayout() {
     >
       {/* Masquer les sous-pages pour ne pas polluer les onglets */}
       <Tabs.Screen name="auth" options={{ href: null }} />
-      <Tabs.Screen
-        name="screens/dashboard"
-        options={{
-          title: "Tableau de bord",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid-outline" size={size} color={color} />
-          ),
-          headerTitle: "Tableau de bord",
-        }}
-      />
+      <Tabs.Screen name="screens/dashboard" options={{ href: null }} />
       <Tabs.Screen
         name="screens/patients"
         options={{
@@ -70,25 +61,36 @@ export default function MedecinLayout() {
         }}
       />
       <Tabs.Screen
+        name="screens/messages"
+        options={{
+          title: "Messages",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles-outline" size={size} color={color} />
+          ),
+          headerTitle: "Messages",
+        }}
+      />
+      <Tabs.Screen
+        name="screens/agenda"
+        options={{
+          title: "Agenda",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" size={size} color={color} />
+          ),
+          headerTitle: "Agenda",
+        }}
+      />
+      <Tabs.Screen
         name="screens/rendezvous"
         options={{
           title: "Rendez-vous",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
+            <Ionicons name="calendar-number-outline" size={size} color={color} />
           ),
           headerTitle: "Mes rendez-vous",
         }}
       />
-      <Tabs.Screen
-        name="screens/creneaux"
-        options={{
-          title: "Créneaux",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="time-outline" size={size} color={color} />
-          ),
-          headerTitle: "Gestion des créneaux",
-        }}
-      />
+      <Tabs.Screen name="screens/creneaux" options={{ href: null }} />
       <Tabs.Screen
         name="screens/profile"
         options={{

@@ -32,7 +32,8 @@ export default function PatientSearchScreen() {
     try {
       setLoading(true);
       console.log('🔄 Chargement des spécialités...');
-      const response = await apiService.getSpecialites();
+      // API publique des spécialités (selon endpoints globaux) non exposée ici → ignorer
+      const response: any = { data: [] };
       console.log('✅ Spécialités reçues:', response);
       setSpecialties(response.data || []);
       console.log('📋 Spécialités dans le state:', response.data?.length || 0);
@@ -49,7 +50,8 @@ export default function PatientSearchScreen() {
     try {
       setLoading(true);
       console.log('🔄 Chargement des maux...');
-      const response = await apiService.getMaux();
+      // API publique des maux non exposée dans apiService → ignorer pour l'instant
+      const response: any = { data: [] };
       console.log('✅ Maux reçus:', response);
       setMaux(response.data || []);
       console.log('📋 Maux dans le state:', response.data?.length || 0);
@@ -70,14 +72,13 @@ export default function PatientSearchScreen() {
         setDoctors([]);
         return;
       }
-      const response = await apiService.getMedecinsBySpecialiteId(specialtyId, {
-        q: query || undefined,
-        page: 1,
-        limit: 50,
-        cabinet_id: cabinetId,
-      });
-      console.log('✅ Médecins reçus:', response);
-      setDoctors(response.data || []);
+      // Fallback: utiliser la recherche approuvée globale et filtrer côté client
+      const response = await apiService.getApprovedMedecinsSearch({ q: query || '', page: 1, limit: 50 });
+      const list = (response?.data || []).filter((m: any) =>
+        (m.specialites || []).some((s: any) => s.idspecialite === specialtyId)
+      );
+      console.log('✅ Médecins reçus (fallback):', list.length);
+      setDoctors(list);
       console.log('👨‍⚕️ Médecins dans le state:', response.data?.length || 0);
     } catch (error) {
       console.error('❌ Erreur chargement médecins:', error);

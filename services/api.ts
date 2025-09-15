@@ -64,12 +64,18 @@ export interface User {
 
 export interface Patient {
   idpatient: string;
+  idutilisateur: string;
+  prenom: string;
+  nom: string;
+  email: string;
+  telephone: string;
   datenaissance: string;
   genre: 'M' | 'F';
   adresse: string;
   groupesanguin: string;
   poids: number;
   taille: number;
+  actif: boolean;
   statut: 'ACTIF' | 'INACTIF';
 }
 
@@ -625,152 +631,8 @@ class ApiService {
     return this.request<{ message: string; data: Medecin[] }>(url);
   }
 
-  // Rendez-vous
-  async createRendezVous(data: {
-    patient_id: string;
-    medecin_id: string;
-    dateheure: string;
-    duree: number;
-    motif: string;
-    creneau_id?: string;
-  }) {
-    return this.request<{ message: string; data: RendezVous }>(
-      '/api/rendezvous',
-      {
-        method: 'POST',
-        body: data,
-      }
-    );
-  }
 
-  async getRendezVousPatient(patientId: string) {
-    return this.request<{ message: string; data: RendezVous[] }>(
-      `/api/rendezvous/patient/${patientId}`
-    );
-  }
 
-  async getRendezVousMedecin(medecinId: string) {
-    return this.request<{ message: string; data: RendezVous[] }>(
-      `/api/rendezvous/medecin/${medecinId}`
-    );
-  }
-
-  async confirmRendezVous(rendezVousId: string) {
-    return this.request(`/api/rendezvous/${rendezVousId}/confirmer`, {
-      method: 'PUT',
-    });
-  }
-
-  async cancelRendezVous(rendezVousId: string) {
-    return this.request(`/api/rendezvous/${rendezVousId}/annuler`, {
-      method: 'PUT',
-    });
-  }
-
-  async updateRendezVous(rendezVousId: string, data: {
-    dateheure?: string;
-    duree?: number;
-    motif?: string;
-    creneau_id?: string;
-  }) {
-    return this.request(`/api/rendezvous/${rendezVousId}`, {
-      method: 'PUT',
-      body: data,
-    });
-  }
-
-  // Créneaux
-  async getCreneauxDisponibles(
-    medecinId: string,
-    dateDebut: string,
-    dateFin: string
-  ) {
-    return this.request<{ message: string; data: Creneau[] }>(
-      `/api/rendezvous/medecin/${medecinId}/creneaux-disponibles?dateDebut=${dateDebut}&dateFin=${dateFin}`
-    );
-  }
-
-  async createCreneau(data: {
-    agenda_id: string;
-    debut: string;
-    fin: string;
-    disponible: boolean;
-  }) {
-    return this.request('/api/rendezvous/creneaux', {
-      method: 'POST',
-      body: data,
-    });
-  }
-
-  // Spécialités
-  async getSpecialites() {
-    return this.request<{ message: string; data: Specialite[] }>(
-      '/api/specialites/specialites'
-    );
-  }
-
-  async getMaux() {
-    return this.request<{ message: string; data: any[] }>(
-      '/api/specialites/maux'
-    );
-  }
-
-  // Recherche de spécialités
-  async searchSpecialites(params: { nom?: string; limit?: number; offset?: number }) {
-    const query = new URLSearchParams();
-    if (params.nom) query.append('nom', params.nom);
-    if (params.limit) query.append('limit', String(params.limit));
-    if (params.offset) query.append('offset', String(params.offset));
-    const qs = query.toString();
-    const url = qs ? `/api/specialites/specialites/search?${qs}` : '/api/specialites/specialites/search';
-    return this.request<{ message: string; data: Specialite[] }>(url);
-  }
-
-  // Recherche de maux
-  async searchMaux(params: { nom?: string; categorie?: string; specialite_id?: string; limit?: number; offset?: number }) {
-    const query = new URLSearchParams();
-    if (params.nom) query.append('nom', params.nom);
-    if (params.categorie) query.append('categorie', params.categorie);
-    if (params.specialite_id) query.append('specialite_id', params.specialite_id);
-    if (params.limit) query.append('limit', String(params.limit));
-    if (params.offset) query.append('offset', String(params.offset));
-    const qs = query.toString();
-    const url = qs ? `/api/specialites/maux/search?${qs}` : '/api/specialites/maux/search';
-    return this.request<{ message: string; data: Maux[] }>(url);
-  }
-
-  async getMedecinsBySpecialiteId(
-    specialiteId: string,
-    params?: { q?: string; page?: number; limit?: number; cabinet_id?: string }
-  ) {
-    const query = new URLSearchParams();
-    if (params?.q) query.append('q', params.q);
-    if (params?.page) query.append('page', String(params.page));
-    if (params?.limit) query.append('limit', String(params.limit));
-    if (params?.cabinet_id) query.append('cabinet_id', params.cabinet_id);
-    const qs = query.toString();
-    const url = qs
-      ? `/api/specialites/specialites/${specialiteId}/medecins?${qs}`
-      : `/api/specialites/specialites/${specialiteId}/medecins`;
-    return this.request<{ message: string; data: Medecin[] }>(url);
-  }
-
-  // Médecins par maux
-  async getMedecinsByMauxId(
-    mauxId: string,
-    params?: { q?: string; page?: number; limit?: number; cabinet_id?: string }
-  ) {
-    const query = new URLSearchParams();
-    if (params?.q) query.append('q', params.q);
-    if (params?.page) query.append('page', String(params.page));
-    if (params?.limit) query.append('limit', String(params.limit));
-    if (params?.cabinet_id) query.append('cabinet_id', params.cabinet_id);
-    const qs = query.toString();
-    const url = qs
-      ? `/api/specialites/maux/${mauxId}/medecins?${qs}`
-      : `/api/specialites/maux/${mauxId}/medecins`;
-    return this.request<{ message: string; data: Medecin[] }>(url);
-  }
 
   // Cabinets
   async getCabinets() {
@@ -797,6 +659,111 @@ class ApiService {
 
   async deleteDocument(id: string) {
     return this.request(`/api/dossier-medical/documents/${id}`, { method: 'DELETE' });
+  }
+
+  // === RENDEZ-VOUS ===
+  
+  async getRendezVousMedecin() {
+    // Récupérer l'ID du médecin depuis le profil
+    const profile = await this.getProfile();
+    const medecinId = profile.data.medecin?.idmedecin;
+    
+    if (!medecinId) {
+      throw new Error('ID médecin non trouvé');
+    }
+    
+    return this.request<{ message: string; data: RendezVous[] }>(`/api/rendezvous/medecin/${medecinId}`);
+  }
+
+  async getRendezVousPatient() {
+    return this.request<{ message: string; data: RendezVous[] }>('/api/rendezvous/patient/me');
+  }
+
+  async getRendezVousById(id: string) {
+    return this.request<{ message: string; data: RendezVous }>(`/api/rendezvous/${id}`);
+  }
+
+  async createRendezVous(data: {
+    medecin_id: string;
+    dateheure: string;
+    duree: number;
+    motif: string;
+  }) {
+    return this.request<{ message: string; data: RendezVous }>('/api/rendezvous', {
+        method: 'POST',
+      body: data
+    });
+  }
+
+  async updateRendezVous(id: string, data: {
+    dateheure?: string;
+    duree?: number;
+    motif?: string;
+    statut?: 'EN_ATTENTE' | 'CONFIRME' | 'ANNULE' | 'TERMINE';
+  }) {
+    return this.request<{ message: string; data: RendezVous }>(`/api/rendezvous/${id}`, {
+      method: 'PUT',
+      body: data
+    });
+  }
+
+  async confirmerRendezVous(id: string) {
+    return this.request<{ message: string; data: RendezVous }>(`/api/rendezvous/${id}/confirmer`, {
+      method: 'PUT'
+    });
+  }
+
+  async annulerRendezVous(id: string) {
+    return this.request<{ message: string; data: RendezVous }>(`/api/rendezvous/${id}/annuler`, {
+      method: 'PUT'
+    });
+  }
+
+  async terminerRendezVous(id: string) {
+    return this.request<{ message: string; data: RendezVous }>(`/api/rendezvous/${id}/terminer`, {
+      method: 'PUT'
+    });
+  }
+
+  async getCreneauxDisponibles(medecinId: string, date: string) {
+    return this.request<{ message: string; data: any[] }>(`/api/rendezvous/medecin/${medecinId}/creneaux-disponibles?date=${date}`);
+  }
+
+  async getAgendasMedecin(medecinId: string) {
+    return this.request<{ message: string; data: any[] }>(`/api/rendezvous/medecin/${medecinId}/agendas`);
+  }
+
+  async createCreneau(data: {
+    agenda_id: string;
+    debut: string;
+    fin: string;
+    disponible: boolean;
+  }) {
+    return this.request('/api/rendezvous/creneaux', {
+      method: 'POST',
+      body: data
+    });
+  }
+
+  async updateCreneau(creneauId: string, data: {
+    disponible?: boolean;
+    debut?: string;
+    fin?: string;
+  }) {
+    return this.request(`/api/rendezvous/creneaux/${creneauId}`, {
+      method: 'PUT',
+      body: data
+    });
+  }
+
+  async deleteCreneau(creneauId: string) {
+    return this.request(`/api/rendezvous/creneaux/${creneauId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async getPatients() {
+    return this.request<{ message: string; data: Patient[] }>('/api/auth/patients');
   }
 
   // === MESSAGERIE ===

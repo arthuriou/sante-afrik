@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     RefreshControl,
@@ -10,22 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-
-interface RendezVous {
-  idrendezvous: string;
-  patient_id: string;
-  medecin_id: string;
-  dateheure: string;
-  duree: number;
-  motif: string;
-  statut: 'EN_ATTENTE' | 'CONFIRME' | 'ANNULE' | 'TERMINE';
-  patient: {
-    nom: string;
-    prenom: string;
-    telephone: string;
-    email: string;
-  };
-}
+import { apiService, RendezVous } from '../../../services/api';
 
 export default function MedecinRendezVousScreen() {
   const [rendezVous, setRendezVous] = useState<RendezVous[]>([]);
@@ -33,86 +19,52 @@ export default function MedecinRendezVousScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'aujourdhui' | 'semaine' | 'tous'>('aujourdhui');
 
+  // Charger les rendez-vous au montage
   useEffect(() => {
     loadRendezVous();
-  }, [selectedTab]);
+  }, []);
 
   const loadRendezVous = async () => {
     try {
       setLoading(true);
-      // Récupérer l'ID du médecin depuis le token ou le contexte
-      const medecinId = 'uuid-medecin'; // À remplacer par l'ID réel
       
-      const response = await fetch(`http://localhost:3000/api/rendezvous/medecin/${medecinId}`, {
-        headers: {
-          'Authorization': 'Bearer ' + await getToken(),
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setRendezVous(data.data || []);
-      } else {
-        Alert.alert('Erreur', 'Impossible de charger les rendez-vous');
-      }
+      // Récupérer les rendez-vous du médecin connecté
+      const response = await apiService.getRendezVousMedecin();
+      console.log('Rendez-vous médecin:', response.data);
+      
+      setRendezVous(response.data || []);
+      
     } catch (error) {
-      Alert.alert('Erreur', 'Erreur de connexion');
+      console.error('Erreur lors du chargement des rendez-vous:', error);
+      Alert.alert('Erreur', 'Impossible de charger les rendez-vous');
     } finally {
       setLoading(false);
     }
   };
 
-  const getToken = async () => {
-    // Récupérer le token depuis AsyncStorage
-    return 'token'; // À implémenter
-  };
-
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadRendezVous().finally(() => setRefreshing(false));
+    await loadRendezVous();
+    setRefreshing(false);
   };
 
   const handleConfirmerRdv = async (rdvId: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/rendezvous/${rdvId}/confirmer`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': 'Bearer ' + await getToken(),
-        },
-      });
-
-      if (response.ok) {
-        Alert.alert('Succès', 'Rendez-vous confirmé');
-        loadRendezVous();
-      } else {
-        Alert.alert('Erreur', 'Impossible de confirmer le rendez-vous');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur de connexion');
+      await apiService.confirmerRendezVous(rdvId);
+      Alert.alert('Succès', 'Rendez-vous confirmé');
+      loadRendezVous();
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Impossible de confirmer le rendez-vous');
     }
   };
 
   const handleAnnulerRdv = async (rdvId: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/rendezvous/${rdvId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': 'Bearer ' + await getToken(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          statut: 'ANNULE'
-        }),
-      });
-
-      if (response.ok) {
-        Alert.alert('Succès', 'Rendez-vous annulé');
-        loadRendezVous();
-      } else {
-        Alert.alert('Erreur', 'Impossible d\'annuler le rendez-vous');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur de connexion');
+      await apiService.annulerRendezVous(rdvId);
+      Alert.alert('Succès', 'Rendez-vous annulé');
+      loadRendezVous();
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Impossible d\'annuler le rendez-vous');
     }
   };
 
@@ -159,9 +111,11 @@ export default function MedecinRendezVousScreen() {
       <View style={styles.rdvHeader}>
         <View style={styles.patientInfo}>
           <Text style={styles.patientName}>
-            {item.patient.prenom} {item.patient.nom}
+            {item.patient?.prenom || 'Patient'} {item.patient?.nom || ''}
           </Text>
-          <Text style={styles.patientContact}>{item.patient.telephone}</Text>
+          {item.patient?.telephone ? (
+            <Text style={styles.patientContact}>{item.patient.telephone}</Text>
+          ) : null}
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.statut) }]}>
           <Text style={styles.statusText}>{getStatusText(item.statut)}</Text>
@@ -220,6 +174,17 @@ export default function MedecinRendezVousScreen() {
         return true;
     }
   });
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#34C759" />
+          <Text style={styles.loadingText}>Chargement des rendez-vous...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -290,7 +255,7 @@ export default function MedecinRendezVousScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7FAFC',
+    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
@@ -306,7 +271,7 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   addButton: {
-    backgroundColor: '#E53E3E',
+    backgroundColor: '#2E7CF6',
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -328,16 +293,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   activeTab: {
-    backgroundColor: '#E53E3E',
+    backgroundColor: '#2E7CF6',
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#6B7280',
   },
-  activeTabText: {
-    color: '#FFFFFF',
-  },
+  activeTabText: { color: '#FFFFFF' },
   listContainer: {
     paddingHorizontal: 20,
     paddingBottom: 20,
@@ -349,9 +312,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#E5EAF0',
   },
   rdvHeader: {
     flexDirection: 'row',
@@ -451,5 +416,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#8E8E93',
+    fontFamily: 'System',
   },
 });

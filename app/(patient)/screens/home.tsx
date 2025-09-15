@@ -37,7 +37,7 @@ export default function PatientHomeScreen() {
     if (!patientId) return;
     (async () => {
       try {
-        const list = await apiService.getRendezVousPatient(patientId);
+        const list = await apiService.getRendezVousPatient();
         const upcoming = (list?.data || list || [])
           .filter((r: any) => new Date(r.dateheure) > new Date())
           .sort((a: any, b: any) => new Date(a.dateheure).getTime() - new Date(b.dateheure).getTime())[0];
@@ -81,78 +81,16 @@ export default function PatientHomeScreen() {
       // Si pas assez de résultats, chercher par spécialités
       if (allResults.length < 10) {
         try {
-          const specialitesResp = await apiService.searchSpecialites({ 
-            nom: text.trim(), 
-            limit: 3 
-          });
+          const specialitesResp = await apiService.getApprovedMedecinsSearch({ q: text.trim(), page: 1, limit: 1 });
           
-          if (specialitesResp?.data) {
-            for (const specialite of specialitesResp.data) {
-              try {
-                const medecinsSpecialite = await apiService.getMedecinsBySpecialiteId(
-                  specialite.idspecialite, 
-                  { limit: 5 }
-                );
-                
-                if (medecinsSpecialite?.data) {
-                  medecinsSpecialite.data.forEach((medecin: any) => {
-                    // Éviter les doublons
-                    if (!allResults.find(r => r.idmedecin === medecin.idmedecin)) {
-                      allResults.push({ 
-                        ...medecin, 
-                        _type: 'medecin',
-                        _context: `Spécialité: ${specialite.nom}`
-                      });
-                    }
-                  });
-                }
-              } catch (e) {
-                console.log('Erreur médecins spécialité:', e);
-              }
-            }
-          }
+          // simplification: on garde la recherche médecins
         } catch (e) {
           console.log('Erreur recherche spécialités:', e);
         }
       }
       
       // Si toujours pas assez, chercher par maux
-      if (allResults.length < 10) {
-        try {
-          const mauxResp = await apiService.searchMaux({ 
-            nom: text.trim(), 
-            limit: 3 
-          });
-          
-          if (mauxResp?.data) {
-            for (const maux of mauxResp.data) {
-              try {
-                const medecinsMaux = await apiService.getMedecinsByMauxId(
-                  maux.idmaux, 
-                  { limit: 5 }
-                );
-                
-                if (medecinsMaux?.data) {
-                  medecinsMaux.data.forEach((medecin: any) => {
-                    // Éviter les doublons
-                    if (!allResults.find(r => r.idmedecin === medecin.idmedecin)) {
-                      allResults.push({ 
-                        ...medecin, 
-                        _type: 'medecin',
-                        _context: `Traite: ${maux.nom}`
-                      });
-                    }
-                  });
-                }
-              } catch (e) {
-                console.log('Erreur médecins maux:', e);
-              }
-            }
-          }
-        } catch (e) {
-          console.log('Erreur recherche maux:', e);
-        }
-      }
+      // on retire les recherches avancées (spécialités/maux) non supportées par l'API
       
       setResults(allResults.slice(0, 20));
     } catch (e) {

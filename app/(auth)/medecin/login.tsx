@@ -3,16 +3,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { apiService } from '../../../services/api';
 
@@ -43,10 +43,28 @@ export default function MedecinLoginScreen() {
         await AsyncStorage.setItem('refreshToken', response.data.refreshToken);
       }
 
+      console.log('Données utilisateur stockées:', response.data.user);
+
       // Rediriger vers l'écran initial du groupe médecin
       router.replace('/(medecin)/screens/dashboard' as any);
     } catch (error: any) {
-      Alert.alert('Erreur de connexion', error.message);
+      // Gestion spécifique pour les comptes en attente de validation
+      if (error.message && error.message.includes('attente') || error.message.includes('validation') || error.message.includes('PENDING')) {
+        Alert.alert(
+          'Compte en attente',
+          'Votre compte médecin est en attente de validation par un administrateur. Vous recevrez un email de confirmation une fois votre compte validé.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                router.push('/(auth)/medecin/pending-account');
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Erreur de connexion', error.message);
+      }
     } finally {
       setLoading(false);
     }

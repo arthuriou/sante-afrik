@@ -1,30 +1,60 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { apiService, Medecin, Specialite, User } from '../../../services/api';
 
 export default function MedecinDashboardScreen() {
   const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [medecin, setMedecin] = useState<Medecin | null>(null);
+  const [specialites, setSpecialites] = useState<Specialite[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Charger les données du médecin au montage
+  useEffect(() => {
+    loadMedecinData();
+  }, []);
+
+  const loadMedecinData = async () => {
+    try {
+      setLoading(true);
+      
+      // Récupérer le profil complet du médecin
+      const response = await apiService.getProfile();
+      console.log('Profil médecin:', response.data);
+      
+      setUser(response.data);
+      setMedecin(response.data.medecin || null);
+      setSpecialites(response.data.medecin?.specialites || []);
+      
+    } catch (error) {
+      console.error('Erreur lors du chargement des données médecin:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const stats = [
-    { id: 1, title: 'Rendez-vous aujourd\'hui', value: '12', icon: 'calendar-outline', color: '#34C759' },
-    { id: 2, title: 'Patients actifs', value: '156', icon: 'people-outline', color: '#007AFF' },
-    { id: 3, title: 'Revenus du mois', value: '2,450€', icon: 'card-outline', color: '#FF9500' },
-    { id: 4, title: 'Avis patients', value: '4.8/5', icon: 'star-outline', color: '#FFD700' },
+    { id: 1, title: 'Rendez-vous aujourd\'hui', value: '12', icon: 'calendar-outline' as const, color: '#34C759' },
+    { id: 2, title: 'Patients actifs', value: '156', icon: 'people-outline' as const, color: '#007AFF' },
+    { id: 3, title: 'Revenus du mois', value: '2,450€', icon: 'card-outline' as const, color: '#FF9500' },
+    { id: 4, title: 'Avis patients', value: '4.8/5', icon: 'star-outline' as const, color: '#FFD700' },
   ];
 
   const quickActions = [
-    { id: 1, title: 'Nouveau RDV', subtitle: 'Ajouter un rendez-vous', icon: 'add-circle-outline', color: '#34C759' },
-    { id: 2, title: 'Mes patients', subtitle: 'Gérer mes patients', icon: 'people-outline', color: '#007AFF' },
-    { id: 3, title: 'Planning', subtitle: 'Voir mon planning', icon: 'calendar-outline', color: '#FF9500' },
-    { id: 4, title: 'Messages', subtitle: 'Messagerie', icon: 'chatbubble-outline', color: '#AF52DE' },
+    { id: 1, title: 'Nouveau RDV', subtitle: 'Ajouter un rendez-vous', icon: 'add-circle-outline' as const, color: '#34C759' },
+    { id: 2, title: 'Mes patients', subtitle: 'Gérer mes patients', icon: 'people-outline' as const, color: '#007AFF' },
+    { id: 3, title: 'Planning', subtitle: 'Voir mon planning', icon: 'calendar-outline' as const, color: '#FF9500' },
+    { id: 4, title: 'Messages', subtitle: 'Messagerie', icon: 'chatbubble-outline' as const, color: '#AF52DE' },
   ];
 
   const upcomingAppointments = [
@@ -51,20 +81,43 @@ export default function MedecinDashboardScreen() {
     },
   ];
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#34C759" />
+          <Text style={styles.loadingText}>Chargement de votre profil...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* En-tête */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Bonjour, Dr. Dubois</Text>
-            <Text style={styles.subtitle}>Voici un aperçu de votre journée</Text>
+            <Text style={styles.greeting}>
+              Bonjour, {user ? `Dr. ${user.prenom} ${user.nom}` : 'Dr. Médecin'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {specialites.length > 0 
+                ? specialites.map(s => s.nom).join(', ')
+                : 'Voici un aperçu de votre journée'
+              }
+            </Text>
+            {medecin && (
+              <Text style={styles.experience}>
+                {medecin.experience} ans d'expérience • {medecin.statut}
+              </Text>
+            )}
           </View>
-          <TouchableOpacity style={styles.notificationButton}>
-            <Ionicons name="notifications-outline" size={24} color="#34C759" />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationText}>3</Text>
-            </View>
+          <TouchableOpacity 
+            style={styles.notificationButton}
+            onPress={() => router.push('/(medecin)/screens/profile')}
+          >
+            <Ionicons name="person-circle" size={32} color="#34C759" />
           </TouchableOpacity>
         </View>
 
@@ -93,7 +146,7 @@ export default function MedecinDashboardScreen() {
                 key={action.id} 
                 style={styles.quickActionCard}
                 onPress={() => {
-                  if (action.id === 1) router.push('/(medecin)/screens/appointments');
+                  if (action.id === 1) router.push('/(medecin)/screens/rendezvous');
                   if (action.id === 2) router.push('/(medecin)/screens/patients');
                 }}
               >
@@ -113,7 +166,7 @@ export default function MedecinDashboardScreen() {
             <Text style={styles.sectionTitle}>Rendez-vous d'aujourd'hui</Text>
             <TouchableOpacity 
               style={styles.seeAllButton}
-              onPress={() => router.push('/(medecin)/screens/appointments')}
+              onPress={() => router.push('/(medecin)/screens/rendezvous')}
             >
               <Text style={styles.seeAllText}>Voir tout</Text>
               <Ionicons name="chevron-forward" size={16} color="#34C759" />
@@ -396,5 +449,23 @@ const styles = StyleSheet.create({
   messageTime: {
     fontSize: 12,
     color: '#8E8E93',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#8E8E93',
+    fontFamily: 'System',
+  },
+  experience: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginTop: 4,
+    fontFamily: 'System',
   },
 });

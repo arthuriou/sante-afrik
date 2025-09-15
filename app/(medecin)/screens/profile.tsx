@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     SafeAreaView,
     ScrollView,
@@ -12,20 +13,40 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { apiService, Medecin, Specialite, User } from '../../../services/api';
 
 export default function MedecinProfileScreen() {
   const router = useRouter();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [medecin, setMedecin] = useState<Medecin | null>(null);
+  const [specialites, setSpecialites] = useState<Specialite[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const userInfo = {
-    name: 'Dr. Martin Dubois',
-    email: 'martin.dubois@email.com',
-    phone: '+33 1 42 36 78 90',
-    specialty: 'Médecine générale',
-    experience: '15 ans',
-    address: '15 rue de Rivoli, 75001 Paris',
-    rpps: '12345678901',
+  // Charger les données du médecin au montage
+  useEffect(() => {
+    loadMedecinData();
+  }, []);
+
+  const loadMedecinData = async () => {
+    try {
+      setLoading(true);
+      
+      // Récupérer le profil complet du médecin
+      const response = await apiService.getProfile();
+      console.log('Profil médecin chargé:', response.data);
+      
+      setUser(response.data);
+      setMedecin(response.data.medecin || null);
+      setSpecialites(response.data.medecin?.specialites || []);
+      
+    } catch (error) {
+      console.error('Erreur lors du chargement des données médecin:', error);
+      Alert.alert('Erreur', 'Impossible de charger les données du profil');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const menuSections = [
@@ -152,7 +173,7 @@ export default function MedecinProfileScreen() {
     },
   ];
 
-  const handleAction = (item) => {
+  const handleAction = (item: any) => {
     switch (item.action) {
       case 'navigate':
         Alert.alert('Navigation', `Navigation vers ${item.title}`);
@@ -180,7 +201,7 @@ export default function MedecinProfileScreen() {
     }
   };
 
-  const renderMenuItem = (item) => (
+  const renderMenuItem = (item: any) => (
     <TouchableOpacity
       key={item.id}
       style={styles.menuItem}
@@ -217,6 +238,17 @@ export default function MedecinProfileScreen() {
     </TouchableOpacity>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#34C759" />
+          <Text style={styles.loadingText}>Chargement de votre profil...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -224,16 +256,34 @@ export default function MedecinProfileScreen() {
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              <Ionicons name="medical" size={40} color="#8E8E93" />
+              {user?.photoprofil ? (
+                <Ionicons name="person" size={40} color="#8E8E93" />
+              ) : (
+                <Ionicons name="medical" size={40} color="#8E8E93" />
+              )}
             </View>
             <TouchableOpacity style={styles.editAvatarButton}>
               <Ionicons name="camera" size={16} color="white" />
             </TouchableOpacity>
           </View>
           
-          <Text style={styles.userName}>{userInfo.name}</Text>
-          <Text style={styles.userSpecialty}>{userInfo.specialty}</Text>
-          <Text style={styles.userExperience}>{userInfo.experience} d'expérience</Text>
+          <Text style={styles.userName}>
+            {user ? `Dr. ${user.prenom} ${user.nom}` : 'Dr. Médecin'}
+          </Text>
+          <Text style={styles.userSpecialty}>
+            {specialites.length > 0 
+              ? specialites.map(s => s.nom).join(', ')
+              : 'Médecine générale'
+            }
+          </Text>
+          <Text style={styles.userExperience}>
+            {medecin ? `${medecin.experience} ans d'expérience` : 'Expérience non renseignée'}
+          </Text>
+          {medecin && (
+            <Text style={styles.userStatus}>
+              Statut: {medecin.statut}
+            </Text>
+          )}
           
           <TouchableOpacity style={styles.editProfileButton}>
             <Ionicons name="create-outline" size={16} color="#34C759" />
@@ -245,16 +295,24 @@ export default function MedecinProfileScreen() {
         <View style={styles.quickInfo}>
           <View style={styles.infoItem}>
             <Ionicons name="call-outline" size={20} color="#34C759" />
-            <Text style={styles.infoText}>{userInfo.phone}</Text>
+            <Text style={styles.infoText}>{user?.telephone || 'Non renseigné'}</Text>
           </View>
           <View style={styles.infoItem}>
-            <Ionicons name="location-outline" size={20} color="#34C759" />
-            <Text style={styles.infoText}>{userInfo.address}</Text>
+            <Ionicons name="mail-outline" size={20} color="#34C759" />
+            <Text style={styles.infoText}>{user?.email || 'Non renseigné'}</Text>
           </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="card-outline" size={20} color="#34C759" />
-            <Text style={styles.infoText}>RPPS: {userInfo.rpps}</Text>
-          </View>
+          {medecin?.numordre && (
+            <View style={styles.infoItem}>
+              <Ionicons name="card-outline" size={20} color="#34C759" />
+              <Text style={styles.infoText}>Ordre: {medecin.numordre}</Text>
+            </View>
+          )}
+          {medecin?.biographie && (
+            <View style={styles.infoItem}>
+              <Ionicons name="document-text-outline" size={20} color="#34C759" />
+              <Text style={styles.infoText}>{medecin.biographie}</Text>
+            </View>
+          )}
         </View>
 
         {/* Menu */}
@@ -279,7 +337,7 @@ export default function MedecinProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#FFFFFF',
   },
   profileHeader: {
     backgroundColor: 'white',
@@ -306,7 +364,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#34C759',
+    backgroundColor: '#2E7CF6',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -318,7 +376,7 @@ const styles = StyleSheet.create({
   },
   userSpecialty: {
     fontSize: 16,
-    color: '#34C759',
+    color: '#2E7CF6',
     fontWeight: '500',
     marginBottom: 4,
   },
@@ -330,7 +388,7 @@ const styles = StyleSheet.create({
   editProfileButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#EAF2FF',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -339,7 +397,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 14,
     fontWeight: '500',
-    color: '#34C759',
+    color: '#2E7CF6',
   },
   quickInfo: {
     backgroundColor: 'white',
@@ -398,7 +456,7 @@ const styles = StyleSheet.create({
   menuItemTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#000',
+    color: '#0A2540',
   },
   menuItemSubtitle: {
     fontSize: 14,
@@ -412,5 +470,24 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 12,
     color: '#8E8E93',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#8E8E93',
+    fontFamily: 'System',
+  },
+  userStatus: {
+    fontSize: 14,
+    color: '#FF9500',
+    marginTop: 4,
+    fontWeight: '500',
+    fontFamily: 'System',
   },
 });

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     Modal,
@@ -12,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { apiService } from '../../../services/api';
 
 interface Creneau {
   idcreneau: string;
@@ -53,49 +55,47 @@ export default function CreneauxScreen() {
 
   const loadAgendas = async () => {
     try {
-      // Récupérer les agendas du médecin
-      const medecinId = 'uuid-medecin'; // À remplacer par l'ID réel
-      const response = await fetch(`http://localhost:3000/api/agendas/medecin/${medecinId}`, {
-        headers: {
-          'Authorization': 'Bearer ' + await getToken(),
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAgendas(data.data || []);
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement des agendas:', error);
-    }
-  };
-
-  const loadCreneaux = async () => {
-    try {
       setLoading(true);
-      const dateStr = selectedDate.toISOString().split('T')[0];
-      const response = await fetch(`http://localhost:3000/api/creneaux?date=${dateStr}`, {
-        headers: {
-          'Authorization': 'Bearer ' + await getToken(),
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCreneaux(data.data || []);
-      } else {
-        Alert.alert('Erreur', 'Impossible de charger les créneaux');
+      
+      // Récupérer l'ID du médecin depuis le profil
+      const profile = await apiService.getProfile();
+      const medecinId = profile.data.medecin?.idmedecin;
+      
+      if (!medecinId) {
+        throw new Error('ID médecin non trouvé');
       }
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur de connexion');
+      
+      // Récupérer les agendas du médecin
+      const response = await apiService.getAgendasMedecin(medecinId);
+      setAgendas(response.data || []);
+      
+    } catch (error: any) {
+      console.error('Erreur lors du chargement des agendas:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de charger les agendas');
     } finally {
       setLoading(false);
     }
   };
 
-  const getToken = async () => {
-    // Récupérer le token depuis AsyncStorage
-    return 'token'; // À implémenter
+  const loadCreneaux = async () => {
+    try {
+      // Récupérer l'ID du médecin depuis le profil
+      const profile = await apiService.getProfile();
+      const medecinId = profile.data.medecin?.idmedecin;
+      
+      if (!medecinId) {
+        throw new Error('ID médecin non trouvé');
+      }
+      
+      // Récupérer les créneaux pour la date sélectionnée
+      const date = selectedDate.toISOString().split('T')[0];
+      const response = await apiService.getCreneauxDisponibles(medecinId, date);
+      setCreneaux(response.data || []);
+      
+    } catch (error: any) {
+      console.error('Erreur lors du chargement des créneaux:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de charger les créneaux');
+    }
   };
 
   const onRefresh = () => {
@@ -116,53 +116,31 @@ export default function CreneauxScreen() {
         return;
       }
 
-      const response = await fetch('http://localhost:3000/api/creneaux', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + await getToken(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          agenda_id: agendaId,
-          debut: `${selectedDate.toISOString().split('T')[0]}T${newCreneau.debut}:00Z`,
-          fin: `${selectedDate.toISOString().split('T')[0]}T${newCreneau.fin}:00Z`,
-          duree: newCreneau.duree,
-        }),
+      // Utiliser l'API service pour créer un créneau
+      await apiService.createCreneau({
+        agenda_id: agendaId,
+        debut: `${selectedDate.toISOString().split('T')[0]}T${newCreneau.debut}:00Z`,
+        fin: `${selectedDate.toISOString().split('T')[0]}T${newCreneau.fin}:00Z`,
+        disponible: true,
       });
 
-      if (response.ok) {
-        Alert.alert('Succès', 'Créneau ajouté avec succès');
-        setShowAddModal(false);
-        setNewCreneau({ debut: '', fin: '', duree: 30 });
-        loadCreneaux();
-      } else {
-        Alert.alert('Erreur', 'Impossible d\'ajouter le créneau');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur de connexion');
+      Alert.alert('Succès', 'Créneau ajouté avec succès');
+      setShowAddModal(false);
+      setNewCreneau({ debut: '', fin: '', duree: 30 });
+      loadCreneaux();
+      
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Impossible d\'ajouter le créneau');
     }
   };
 
   const handleToggleDisponibilite = async (creneauId: string, disponible: boolean) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/creneaux/${creneauId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': 'Bearer ' + await getToken(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          disponible: !disponible
-        }),
-      });
-
-      if (response.ok) {
-        loadCreneaux();
-      } else {
-        Alert.alert('Erreur', 'Impossible de modifier le créneau');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Erreur de connexion');
+      // Utiliser l'API service pour modifier le créneau
+      await apiService.updateCreneau(creneauId, { disponible: !disponible });
+      loadCreneaux();
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Impossible de modifier le créneau');
     }
   };
 
@@ -177,21 +155,12 @@ export default function CreneauxScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`http://localhost:3000/api/creneaux/${creneauId}`, {
-                method: 'DELETE',
-                headers: {
-                  'Authorization': 'Bearer ' + await getToken(),
-                },
-              });
-
-              if (response.ok) {
-                Alert.alert('Succès', 'Créneau supprimé');
-                loadCreneaux();
-              } else {
-                Alert.alert('Erreur', 'Impossible de supprimer le créneau');
-              }
-            } catch (error) {
-              Alert.alert('Erreur', 'Erreur de connexion');
+              // Utiliser l'API service pour supprimer le créneau
+              await apiService.deleteCreneau(creneauId);
+              Alert.alert('Succès', 'Créneau supprimé');
+              loadCreneaux();
+            } catch (error: any) {
+              Alert.alert('Erreur', error.message || 'Impossible de supprimer le créneau');
             }
           },
         },
@@ -263,6 +232,17 @@ export default function CreneauxScreen() {
       </View>
     </View>
   );
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#34C759" />
+          <Text style={styles.loadingText}>Chargement des créneaux...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -608,5 +588,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#8E8E93',
+    fontFamily: 'System',
   },
 });

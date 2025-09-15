@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     FlatList,
     SafeAreaView,
     StyleSheet,
@@ -10,107 +12,117 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { apiService, Patient } from '../../../services/api';
 
 export default function MedecinPatientsScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const patients = [
-    {
-      id: 1,
-      name: 'Marie Dupont',
-      age: 35,
-      lastVisit: '15 Janvier 2024',
-      nextAppointment: '22 Janvier 2024',
-      status: 'active',
-      phone: '+33 6 12 34 56 78',
-      email: 'marie.dupont@email.com',
-    },
-    {
-      id: 2,
-      name: 'Pierre Martin',
-      age: 42,
-      lastVisit: '10 Janvier 2024',
-      nextAppointment: null,
-      status: 'active',
-      phone: '+33 6 23 45 67 89',
-      email: 'pierre.martin@email.com',
-    },
-    {
-      id: 3,
-      name: 'Sophie Laurent',
-      age: 28,
-      lastVisit: '8 Janvier 2024',
-      nextAppointment: '20 Janvier 2024',
-      status: 'active',
-      phone: '+33 6 34 56 78 90',
-      email: 'sophie.laurent@email.com',
-    },
-    {
-      id: 4,
-      name: 'Jean Dubois',
-      age: 55,
-      lastVisit: '5 Janvier 2024',
-      nextAppointment: null,
-      status: 'inactive',
-      phone: '+33 6 45 67 89 01',
-      email: 'jean.dubois@email.com',
-    },
-  ];
+  // Charger les patients au montage
+  useEffect(() => {
+    loadPatients();
+  }, []);
+
+  const loadPatients = async () => {
+    try {
+      setLoading(true);
+      
+      // Récupérer les patients du médecin connecté
+      const response = await apiService.getPatients();
+      console.log('Patients médecin:', response.data);
+      
+      setPatients(response.data || []);
+      
+    } catch (error) {
+      console.error('Erreur lors du chargement des patients:', error);
+      Alert.alert('Erreur', 'Impossible de charger les patients');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredPatients = patients.filter(patient =>
-    patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    patient.email.toLowerCase().includes(searchQuery.toLowerCase())
+    `${patient.prenom} ${patient.nom}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    patient.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    patient.telephone?.includes(searchQuery)
   );
 
-  const renderPatient = ({ item }) => (
+  const renderPatient = ({ item }: { item: Patient }) => (
     <TouchableOpacity style={styles.patientCard}>
       <View style={styles.patientHeader}>
         <View style={styles.patientInfo}>
-          <Text style={styles.patientName}>{item.name}</Text>
-          <Text style={styles.patientAge}>{item.age} ans</Text>
+          <Text style={styles.patientName}>{item.prenom} {item.nom}</Text>
+          <Text style={styles.patientAge}>
+            {item.datenaissance ? 
+              new Date().getFullYear() - new Date(item.datenaissance).getFullYear() + ' ans' : 
+              'Âge non renseigné'
+            }
+          </Text>
         </View>
         <View style={[
           styles.statusBadge,
-          { backgroundColor: item.status === 'active' ? '#34C75920' : '#8E8E9320' }
+          { backgroundColor: item.actif ? '#34C75920' : '#8E8E9320' }
         ]}>
           <Text style={[
             styles.statusText,
-            { color: item.status === 'active' ? '#34C759' : '#8E8E93' }
+            { color: item.actif ? '#34C759' : '#8E8E93' }
           ]}>
-            {item.status === 'active' ? 'Actif' : 'Inactif'}
+            {item.actif ? 'Actif' : 'Inactif'}
           </Text>
         </View>
       </View>
 
       <View style={styles.patientDetails}>
+        {item.telephone && (
         <View style={styles.detailRow}>
           <Ionicons name="call-outline" size={16} color="#8E8E93" />
-          <Text style={styles.detailText}>{item.phone}</Text>
+            <Text style={styles.detailText}>{item.telephone}</Text>
         </View>
+        )}
         
+        {item.email && (
         <View style={styles.detailRow}>
           <Ionicons name="mail-outline" size={16} color="#8E8E93" />
           <Text style={styles.detailText}>{item.email}</Text>
         </View>
+        )}
         
+        {item.genre && (
         <View style={styles.detailRow}>
-          <Ionicons name="calendar-outline" size={16} color="#8E8E93" />
-          <Text style={styles.detailText}>Dernière visite: {item.lastVisit}</Text>
+            <Ionicons name="person-outline" size={16} color="#8E8E93" />
+            <Text style={styles.detailText}>{item.genre}</Text>
         </View>
+        )}
         
-        {item.nextAppointment && (
+        {item.groupesanguin && (
           <View style={styles.detailRow}>
-            <Ionicons name="time-outline" size={16} color="#34C759" />
-            <Text style={[styles.detailText, { color: '#34C759' }]}>
-              Prochain RDV: {item.nextAppointment}
-            </Text>
+            <Ionicons name="water-outline" size={16} color="#8E8E93" />
+            <Text style={styles.detailText}>Groupe sanguin: {item.groupesanguin}</Text>
           </View>
         )}
       </View>
 
       <View style={styles.patientActions}>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={async () => {
+            try {
+              const conv = await apiService.createOrGetPrivateConversation(item.idutilisateur || item.idpatient);
+              const conversationId = conv.data?.idconversation || (conv as any).data?.data?.idconversation;
+              if (conversationId) {
+                // Marquer lu côté ouverture (précaution) puis naviguer
+                try { await apiService.markConversationAsRead(conversationId); } catch {}
+                router.push({ pathname: '/(medecin)/screens/messages/[id]', params: { id: conversationId } } as any);
+              } else {
+                Alert.alert('Erreur', 'Conversation introuvable');
+              }
+            } catch (e: any) {
+              Alert.alert('Erreur', e.message || 'Impossible d’ouvrir la conversation');
+            }
+          }}
+        >
           <Ionicons name="chatbubble-outline" size={16} color="#34C759" />
           <Text style={styles.actionButtonText}>Message</Text>
         </TouchableOpacity>
@@ -127,6 +139,17 @@ export default function MedecinPatientsScreen() {
       </View>
     </TouchableOpacity>
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#34C759" />
+          <Text style={styles.loadingText}>Chargement des patients...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -156,11 +179,11 @@ export default function MedecinPatientsScreen() {
           <Text style={styles.statLabel}>Patients total</Text>
         </View>
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{patients.filter(p => p.status === 'active').length}</Text>
+          <Text style={styles.statNumber}>{patients.filter(p => p.actif).length}</Text>
           <Text style={styles.statLabel}>Actifs</Text>
         </View>
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{patients.filter(p => p.nextAppointment).length}</Text>
+          <Text style={styles.statNumber}>0</Text>
           <Text style={styles.statLabel}>Avec RDV</Text>
         </View>
       </View>
@@ -179,7 +202,7 @@ export default function MedecinPatientsScreen() {
           <FlatList
             data={filteredPatients}
             renderItem={renderPatient}
-            keyExtractor={(item) => item.id.toString()}
+             keyExtractor={(item) => item.idpatient}
             showsVerticalScrollIndicator={false}
           />
         ) : (
@@ -199,7 +222,7 @@ export default function MedecinPatientsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#FFFFFF',
   },
   searchContainer: {
     padding: 16,
@@ -208,7 +231,7 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#EAF2FF',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -254,12 +277,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#000',
+    color: '#0A2540',
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#34C759',
+    backgroundColor: '#2E7CF6',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -277,9 +300,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#E5EAF0',
   },
   patientHeader: {
     flexDirection: 'row',
@@ -330,7 +355,7 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#EAF2FF',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -339,7 +364,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: 12,
     fontWeight: '500',
-    color: '#34C759',
+    color: '#2E7CF6',
   },
   emptyState: {
     flex: 1,
@@ -360,5 +385,17 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#8E8E93',
+    fontFamily: 'System',
   },
 });
