@@ -838,6 +838,31 @@ class ApiService {
     });
   }
 
+  async sendMessageWithFile(conversationId: string, contenu: string, formData: FormData) {
+    const token = await AsyncStorage.getItem('userToken');
+    
+    // S'assurer que conversation_id est dans le FormData
+    if (!formData.has('conversation_id')) {
+      formData.append('conversation_id', conversationId);
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/messagerie/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Erreur serveur:', errorText);
+      throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+    }
+    
+    return await response.json();
+  }
+
   async sendFileMessage(conversationId: string, file: any) {
     const formData = new FormData();
     formData.append('conversation_id', conversationId);
@@ -866,6 +891,25 @@ class ApiService {
   async markMessageAsRead(messageId: string) {
     return this.request(`/api/messagerie/messages/${messageId}/read`, {
       method: 'POST'
+    });
+  }
+
+  // Notifications
+  async getNotifications() {
+    return this.request('/api/notifications', {
+      method: 'GET'
+    });
+  }
+
+  async markNotificationAsRead(notificationId: string) {
+    return this.request(`/api/notifications/${notificationId}/read`, {
+      method: 'PUT'
+    });
+  }
+
+  async markAllNotificationsAsRead() {
+    return this.request('/api/notifications/read-all', {
+      method: 'PUT'
     });
   }
 }

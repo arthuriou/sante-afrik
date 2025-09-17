@@ -81,6 +81,7 @@ export default function PatientLayout() {
       <Tabs.Screen name="screens/search" options={{ href: null }} />
       <Tabs.Screen name="screens/doctor-detail" options={{ href: null }} />
       <Tabs.Screen name="screens/appointment-motif" options={{ href: null }} />
+      <Tabs.Screen name="screens/messages/[id]" options={{ href: null }} />
 
       <Tabs.Screen
         name="screens/home"
@@ -120,6 +121,16 @@ export default function PatientLayout() {
             <Ionicons name="chatbubble" size={size} color={color} />
           ),
           headerTitle: "Mes messages",
+        }}
+      />
+      <Tabs.Screen
+        name="screens/notifications"
+        options={{
+          title: "Notifications",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="notifications" size={size} color={color} />
+          ),
+          headerTitle: "Mes notifications",
         }}
       />
       <Tabs.Screen

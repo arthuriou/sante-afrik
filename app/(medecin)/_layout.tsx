@@ -117,6 +117,16 @@ export default function MedecinLayout() {
           headerTitle: "Mes rendez-vous",
         }}
       />
+      <Tabs.Screen
+        name="screens/notifications"
+        options={{
+          title: "Notifications",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="notifications" size={size} color={color} />
+          ),
+          headerTitle: "Mes notifications",
+        }}
+      />
       <Tabs.Screen name="screens/creneaux" options={{ href: null }} />
       <Tabs.Screen
         name="screens/profile"

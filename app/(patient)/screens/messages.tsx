@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { apiService, Conversation } from '../../../services/api';
+import { ActivityIndicator, Alert, FlatList, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { API_BASE_URL, apiService, Conversation } from '../../../services/api';
 
 export default function MessagesScreen() {
   const router = useRouter();
@@ -59,19 +59,26 @@ export default function MessagesScreen() {
     const lastMessage = item.dernier_message?.contenu || 'Aucun message';
     const timestamp = item.dernier_message?.dateEnvoi ? new Date(item.dernier_message.dateEnvoi).toLocaleDateString() : '';
     const hasUnread = item.nombre_messages_non_lus > 0;
+    const doctorPhoto = otherParticipant?.utilisateur?.photoprofil;
 
     return (
       <TouchableOpacity 
         style={styles.conversationCard}
         onPress={() => {
-          // TODO: Naviguer vers la conversation détaillée
-          console.log('Ouvrir conversation:', item.idconversation);
+          router.push(`/(patient)/screens/messages/${item.idconversation}`);
         }}
       >
         <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={24} color="#007AFF" />
-          </View>
+          {doctorPhoto ? (
+            <Image 
+              source={{ uri: doctorPhoto.startsWith('http') ? doctorPhoto : `${API_BASE_URL}${doctorPhoto}` }} 
+              style={styles.avatarImage} 
+            />
+          ) : (
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={24} color="#007AFF" />
+            </View>
+          )}
           {hasUnread && <View style={styles.unreadBadge} />}
         </View>
         
@@ -228,6 +235,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F8FF',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   unreadBadge: {
     position: 'absolute',

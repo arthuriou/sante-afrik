@@ -15,9 +15,18 @@ export async function createSocket(): Promise<Socket> {
   return socket;
 }
 
-export function bindMessagingRealtime(socket: Socket, handlers: { onNewMessage?: (m: any)=>void; onMessageRead?: (p: any)=>void }) {
+export function bindMessagingRealtime(socket: Socket, handlers: { 
+  onNewMessage?: (m: any)=>void; 
+  onMessageRead?: (p: any)=>void;
+  onConversationRead?: (data: { conversation_id: string; reader_id: string }) => void;
+}) {
   socket.on('message:new', (payload: any) => handlers.onNewMessage?.(payload?.data));
   socket.on('message:read', (payload: any) => handlers.onMessageRead?.(payload?.data));
+  
+  // NOUVEAU - Gestion du statut "Lu"
+  if (handlers.onConversationRead) {
+    socket.on('conversation_read', handlers.onConversationRead);
+  }
 }
 
 export function joinConversation(socket: Socket, conversationId: string) {
