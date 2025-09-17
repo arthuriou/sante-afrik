@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -10,29 +11,24 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { apiService } from '../../../services/api';
+import { useNotifications } from '../../../services/notificationContext';
+import { Notification, notificationService } from '../../../services/notificationService';
 
-interface Notification {
-  id: string;
-  titre: string;
-  contenu: string;
-  type: string;
-  date_creation: string;
-  lu: boolean;
-  data?: any;
-}
+// Interface déjà définie dans notificationService
 
 export default function MedecinNotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { updateNotificationsCount, markNotificationsAsRead } = useNotifications();
 
   const loadNotifications = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getNotifications();
-      const data = (response as any)?.data || response;
-      setNotifications(Array.isArray(data) ? data : []);
+      const notifications = await notificationService.getNotifications();
+      setNotifications(notifications);
+      // Mettre à jour le compteur global
+      await updateNotificationsCount();
     } catch (error) {
       console.error('Erreur chargement notifications:', error);
     } finally {
@@ -48,12 +44,14 @@ export default function MedecinNotificationsScreen() {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      await apiService.markNotificationAsRead(notificationId);
+      await notificationService.markAsRead(notificationId);
       setNotifications(prev => 
         prev.map(notif => 
           notif.id === notificationId ? { ...notif, lu: true } : notif
         )
       );
+      // Mettre à jour le compteur global
+      await updateNotificationsCount();
     } catch (error) {
       console.error('Erreur marquer comme lu:', error);
     }
@@ -61,10 +59,12 @@ export default function MedecinNotificationsScreen() {
 
   const markAllAsRead = async () => {
     try {
-      await apiService.markAllNotificationsAsRead();
+      await notificationService.markAllAsRead();
       setNotifications(prev => 
         prev.map(notif => ({ ...notif, lu: true }))
       );
+      // Mettre à jour le compteur global
+      markNotificationsAsRead();
     } catch (error) {
       console.error('Erreur marquer tout comme lu:', error);
     }
@@ -73,6 +73,13 @@ export default function MedecinNotificationsScreen() {
   useEffect(() => {
     loadNotifications();
   }, []);
+
+  // Recharger les notifications quand l'écran devient actif
+  useFocusEffect(
+    useCallback(() => {
+      loadNotifications();
+    }, [])
+  );
 
   const formatDate = (dateString: string) => {
     try {

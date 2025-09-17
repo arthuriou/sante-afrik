@@ -7,7 +7,7 @@ import { NotificationProvider, useNotifications } from '../../services/notificat
 
 function PatientTabs() {
   const pathname = usePathname();
-  const { unreadMessagesCount } = useNotifications();
+  const { unreadMessagesCount, unreadNotificationsCount, totalUnreadCount } = useNotifications();
 
   useEffect(() => {
     const onBackPress = () => {
@@ -84,6 +84,7 @@ function PatientTabs() {
       <Tabs.Screen name="screens/search" options={{ href: null }} />
       <Tabs.Screen name="screens/doctor-detail" options={{ href: null }} />
       <Tabs.Screen name="screens/appointment-motif" options={{ href: null }} />
+      <Tabs.Screen name="screens/notification-settings" options={{ href: null }} />
       <Tabs.Screen name="screens/messages/[id]" options={{ href: null }} />
 
       <Tabs.Screen
@@ -151,16 +152,41 @@ function PatientTabs() {
           headerTitle: "Mes messages",
         }}
       />
-      <Tabs.Screen
-        name="screens/notifications"
-        options={{
-          title: "Notifications",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="notifications" size={size} color={color} />
-          ),
-          headerTitle: "Mes notifications",
-        }}
-      />
+          <Tabs.Screen
+            name="screens/notifications"
+            options={{
+              title: "Notifications",
+              tabBarIcon: ({ color, size }) => (
+                <View style={{ position: 'relative' }}>
+                  <Ionicons name="notifications" size={size} color={color} />
+                  {unreadNotificationsCount > 0 && (
+                    <View style={{
+                      position: 'absolute',
+                      top: -2,
+                      right: -8,
+                      backgroundColor: '#FF3B30',
+                      borderRadius: 10,
+                      minWidth: 20,
+                      height: 20,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      borderWidth: 2,
+                      borderColor: '#FFFFFF',
+                    }}>
+                      <Text style={{
+                        color: '#FFFFFF',
+                        fontSize: 12,
+                        fontWeight: '700',
+                      }}>
+                        {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ),
+              headerTitle: "Mes notifications",
+            }}
+          />
       <Tabs.Screen
         name="screens/profile"
         options={{

@@ -4,19 +4,19 @@ import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { API_BASE_URL, apiService, User } from '../../../services/api';
 
@@ -126,12 +126,11 @@ export default function PatientProfileScreen() {
       title: 'Préférences',
       items: [
         {
-          id: 'notifications',
-          title: 'Notifications',
+          id: 'notification-settings',
+          title: 'Préférences de notifications',
           icon: 'notifications-outline',
-          action: 'toggle',
-          value: notificationsEnabled,
-          onToggle: setNotificationsEnabled,
+          action: 'navigate',
+          subtitle: 'Sons, vibrations, types',
         },
         {
           id: 'location',
@@ -204,6 +203,8 @@ export default function PatientProfileScreen() {
       case 'navigate':
         if (item.id === 'edit-profile') {
           router.navigate('/(patient)/modals/edit-profile');
+        } else if (item.id === 'notification-settings') {
+          router.navigate('/(patient)/screens/notification-settings');
         } else {
           Alert.alert('Navigation', `Navigation vers ${item.title}`);
         }

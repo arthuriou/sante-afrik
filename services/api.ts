@@ -894,22 +894,96 @@ class ApiService {
     });
   }
 
-  // Notifications
-  async getNotifications() {
-    return this.request('/api/notifications', {
+  // Notifications - Endpoints du backend
+  async getNotifications(filters: any = {}) {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        params.append(key, value.toString());
+      }
+    });
+    
+    const queryString = params.toString();
+    const url = queryString ? `/api/notifications/history?${queryString}` : '/api/notifications/history';
+    
+    return this.request(url, {
       method: 'GET'
     });
   }
 
-  async markNotificationAsRead(notificationId: string) {
-    return this.request(`/api/notifications/${notificationId}/read`, {
-      method: 'PUT'
+  async createNotification(notificationData: any) {
+    return this.request('/api/notifications/history', {
+      method: 'POST',
+      body: JSON.stringify(notificationData)
     });
   }
 
-  async markAllNotificationsAsRead() {
-    return this.request('/api/notifications/read-all', {
-      method: 'PUT'
+  async markNotificationAsRead(notificationIds: string[]) {
+    return this.request('/api/notifications/history/mark-read', {
+      method: 'POST',
+      body: JSON.stringify({ notification_ids: notificationIds })
+    });
+  }
+
+  async markAllNotificationsAsRead(type?: string) {
+    const url = type 
+      ? `/api/notifications/history/mark-all-read?type_notification=${type}`
+      : '/api/notifications/history/mark-all-read';
+    
+    return this.request(url, {
+      method: 'POST'
+    });
+  }
+
+  async getNotificationStats() {
+    return this.request('/api/notifications/history/stats', {
+      method: 'GET'
+    });
+  }
+
+  async deleteNotification(notificationId: string) {
+    return this.request(`/api/notifications/history/${notificationId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Préférences de notification
+  async getNotificationPreferences() {
+    return this.request('/api/notifications/preferences', {
+      method: 'GET'
+    });
+  }
+
+  async updateNotificationPreferences(preferences: any) {
+    return this.request('/api/notifications/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(preferences)
+    });
+  }
+
+  async resetNotificationPreferences() {
+    return this.request('/api/notifications/preferences/reset', {
+      method: 'POST'
+    });
+  }
+
+  // Devices de notification
+  async registerNotificationDevice(device: any) {
+    return this.request('/api/notifications/devices', {
+      method: 'POST',
+      body: JSON.stringify(device)
+    });
+  }
+
+  async getNotificationDevices() {
+    return this.request('/api/notifications/devices', {
+      method: 'GET'
+    });
+  }
+
+  async deleteNotificationDevice(token: string) {
+    return this.request(`/api/notifications/devices/${token}`, {
+      method: 'DELETE'
     });
   }
 }

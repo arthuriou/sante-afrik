@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { API_BASE_URL, apiService, Conversation } from '../../../services/api';
 import { useNotifications } from '../../../services/notificationContext';
-import { bindMessagingRealtime, createSocket } from '../../../services/socket';
+import { bindMessagingRealtime, createSocket, joinConversation } from '../../../services/socket';
 
 export default function MessagesScreen() {
   const router = useRouter();
@@ -15,11 +15,16 @@ export default function MessagesScreen() {
   const { updateUnreadCount } = useNotifications();
 
   // Charger les conversations
-  const loadConversations = async () => {
+  const loadConversations = async (socketInstance?: any) => {
     try {
       setLoading(true);
       const response = await apiService.getConversations();
-      setConversations(response.data || []);
+      const list = response.data || [];
+      setConversations(list);
+      // Joindre toutes les rooms de conversation pour recevoir new_message
+      if (socketInstance && Array.isArray(list)) {
+        list.forEach(c => joinConversation(socketInstance, c.idconversation));
+      }
     } catch (error) {
       console.error('Erreur chargement conversations:', error);
       Alert.alert('Erreur', 'Impossible de charger les conversations');
@@ -65,25 +70,34 @@ export default function MessagesScreen() {
     const setupRealtime = async () => {
       try {
         socket = await createSocket();
+        // Charger les conversations et joindre les rooms
+        await loadConversations(socket);
         bindMessagingRealtime(socket, {
           onNewMessage: (data) => {
             console.log('📨 Nouveau message reçu dans liste patient:', data);
             // Le backend envoie { message: {...}, conversationId: "..." }
             const message = data?.message || data;
-            const conversationId = data?.conversationId || data?.conversation_id;
-            
-            // Mettre à jour la conversation spécifique
-            setConversations(prev => 
-              prev.map(conv => 
-                conv.idconversation === conversationId
-                  ? {
-                      ...conv,
-                      dernier_message: message,
-                      nombre_messages_non_lus: (conv.nombre_messages_non_lus || 0) + 1
-                    }
-                  : conv
-              )
-            );
+            const conversationId = data?.conversationId || data?.conversation_id || message?.conversation_id;
+            // Si la conversation est actuellement ouverte, ne pas incrémenter le non lu
+            AsyncStorage.getItem('currentConversationId').then((currentId) => {
+              const isActive = currentId && conversationId && String(currentId) === String(conversationId);
+              setConversations(prev => {
+                const exists = prev.some(conv => conv.idconversation === conversationId);
+                if (!exists && conversationId) {
+                  loadConversations(socket);
+                  return prev;
+                }
+                return prev.map(conv => 
+                  conv.idconversation === conversationId
+                    ? {
+                        ...conv,
+                        dernier_message: message,
+                        nombre_messages_non_lus: isActive ? 0 : (conv.nombre_messages_non_lus || 0) + 1
+                      }
+                    : conv
+                );
+              });
+            }).catch(() => {});
           },
           onConversationRead: (data) => {
             console.log('👁️ Conversation lue:', data);

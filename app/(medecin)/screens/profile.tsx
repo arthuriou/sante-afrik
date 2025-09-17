@@ -136,12 +136,11 @@ export default function MedecinProfileScreen() {
       title: 'Préférences',
       items: [
         {
-          id: 'notifications',
-          title: 'Notifications',
+          id: 'notification-settings',
+          title: 'Préférences de notifications',
           icon: 'notifications-outline',
-          action: 'toggle',
-          value: notificationsEnabled,
-          onToggle: setNotificationsEnabled,
+          action: 'navigate',
+          subtitle: 'Sons, vibrations, types',
         },
         {
           id: 'location',
@@ -214,6 +213,8 @@ export default function MedecinProfileScreen() {
       case 'navigate':
         if (item.id === 'edit-profile') {
           router.navigate('/(medecin)/modals/edit-profile');
+        } else if (item.id === 'notification-settings') {
+          router.navigate('/(medecin)/screens/notification-settings');
         } else {
         Alert.alert('Navigation', `Navigation vers ${item.title}`);
         }

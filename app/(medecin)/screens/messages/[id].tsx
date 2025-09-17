@@ -8,31 +8,33 @@ import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    KeyboardAvoidingView,
+    Linking,
+    Modal,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { VoiceMessagePlayer } from '../../../../components/VoiceMessagePlayer';
 import { VoiceRecorder } from '../../../../components/VoiceRecorder';
 import { API_BASE_URL, apiService, Message } from '../../../../services/api';
 import { AudioService } from '../../../../services/audio';
 import { useNotifications } from '../../../../services/notificationContext';
+import { notificationService } from '../../../../services/notificationService';
 import { bindMessagingRealtime, createSocket, joinConversation, leaveConversation } from '../../../../services/socket';
 
 export default function MedecinConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [myUserId, setMyUserId] = useState<string | undefined>(undefined);
   const idsSeenRef = useRef<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -41,6 +43,7 @@ export default function MedecinConversationScreen() {
   const listRef = useRef<FlatList>(null);
   const [contactName, setContactName] = useState<string>('Conversation');
   const [contactPhoto, setContactPhoto] = useState<string | null>(null);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
@@ -79,25 +82,29 @@ export default function MedecinConversationScreen() {
       setLoading(true);
       console.log('🔄 Chargement des messages pour la conversation:', id);
       
-      // D'abord, charger depuis le cache pour un affichage immédiat
+      // Charger depuis le cache pour un affichage immédiat
       const cachedMessages = await loadMessagesFromCache();
+      const cachedById: Record<string, any> = {};
+      cachedMessages.forEach(m => { cachedById[String((m as any).idmessage)] = m; });
       if (cachedMessages.length > 0) {
         setMessages(cachedMessages);
         console.log('📱 Messages affichés depuis le cache:', cachedMessages.length);
       }
       
-      // Ensuite, charger depuis l'API pour avoir les données à jour
+      // Charger depuis l'API et fusionner sans perte
       const response = await apiService.getMessages(String(id), 100, 0);
       console.log('📨 Messages reçus de l\'API:', response);
-      
-      const apiMessages = response.data || response || [];
+      const apiMessages: any[] = (response as any)?.data?.data || (response as any)?.data || (Array.isArray(response) ? response : []);
       console.log('📝 Nombre de messages chargés depuis l\'API:', apiMessages.length);
       
-      // Mettre à jour avec les messages de l'API
-      setMessages(apiMessages);
-      
-      // Sauvegarder en cache
-      await saveMessagesToCache(apiMessages);
+      const map: Record<string, any> = { ...cachedById };
+      apiMessages.forEach(m => { map[String((m as any).idmessage)] = m; });
+      const merged = Object.values(map).sort((a: any, b: any) => (
+        new Date((a as any).dateEnvoi || (a as any).dateenvoi || 0).getTime() -
+        new Date((b as any).dateEnvoi || (b as any).dateenvoi || 0).getTime()
+      ));
+      setMessages(merged as any);
+      await saveMessagesToCache(merged as any);
       
       // Scroll vers le bas après que les messages soient rendus
       requestAnimationFrame(() => {
@@ -139,6 +146,7 @@ export default function MedecinConversationScreen() {
       try {
         const me = await apiService.getProfile();
         meId = (me as any)?.data?.idutilisateur || (me as any)?.data?.id;
+        setMyUserId(meId);
       } catch {}
 
       // Garder la structure des participants
@@ -203,12 +211,14 @@ export default function MedecinConversationScreen() {
   useFocusEffect(
     useCallback(() => {
       console.log('🔄 Focus sur la conversation médecin - rafraîchissement automatique');
+      AsyncStorage.setItem('currentConversationId', String(id)).catch(() => {});
       loadMessages();
       
       // Forcer le scroll vers le bas après un court délai
       setTimeout(() => {
         listRef.current?.scrollToEnd({ animated: false });
       }, 300);
+      return () => { AsyncStorage.removeItem('currentConversationId').catch(() => {}); };
     }, [id])
   );
 
@@ -299,13 +309,17 @@ export default function MedecinConversationScreen() {
             });
             
             console.log('✅ Ajout du nouveau message médecin:', message);
-            return [...withoutTmp, message];
+            const merged = [...withoutTmp, message];
+            saveMessagesToCache(merged).catch(() => {});
+            return merged;
           });
           
           // Scroll vers le bas après un court délai
           setTimeout(() => {
             listRef.current?.scrollToEnd({ animated: true });
           }, 100);
+          // Marquer comme lu immédiatement si écran ouvert
+          apiService.markConversationAsRead(String(id)).catch(() => {});
         },
         onConversationRead: (data) => {
           // Vérifier que l'événement concerne bien cette conversation
@@ -356,6 +370,28 @@ export default function MedecinConversationScreen() {
       
       await apiService.sendMessage(String(id), content);
       console.log('✅ Message envoyé avec succès');
+      
+      // Envoyer une notification de message
+      try {
+        // Récupérer les informations de l'utilisateur pour le nom
+        const userInfo = await AsyncStorage.getItem('userInfo');
+        let userName = 'Vous';
+        
+        if (userInfo) {
+          const user = JSON.parse(userInfo);
+          userName = `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Vous';
+        }
+        
+        console.log('👤 Nom de l\'expéditeur pour notification:', userName);
+        
+        await notificationService.sendMessageNotification(
+          userName,
+          content,
+          String(id)
+        );
+      } catch (error) {
+        console.log('⚠️ Erreur envoi notification:', error);
+      }
       
       // Sauvegarder les messages en cache après envoi
       setTimeout(async () => {
@@ -601,9 +637,10 @@ export default function MedecinConversationScreen() {
 
   const renderMessage = ({ item }: { item: Message }) => {
     // Logique robuste pour déterminer si c'est mon message
-    const isMine = item.expediteur_id === 'me' || 
-                   (item as any).est_mien === true ||
-                   (item as any).expediteur_id === 'me';
+    const senderId = (item as any).expediteur_id || (item as any).expediteur?.idutilisateur;
+    const isMine = (myUserId && String(senderId) === String(myUserId)) 
+                   || senderId === 'me'
+                   || (item as any).est_mien === true;
     
     // Déterminer si le message a été lu (double checkmark)
     const isRead = isMine && (item as any).lu_par?.length > 0;
@@ -715,6 +752,12 @@ export default function MedecinConversationScreen() {
               contentContainerStyle={styles.messagesListContent}
               onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
               onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
+              onScroll={(e) => {
+                const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+                const atBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 150;
+                setShowScrollBottom(!atBottom);
+              }}
+              scrollEventThrottle={100}
             />
           )}
 
@@ -766,6 +809,15 @@ export default function MedecinConversationScreen() {
             </View>
           )}
         </KeyboardAvoidingView>
+
+        {showScrollBottom && (
+          <TouchableOpacity
+            onPress={() => listRef.current?.scrollToEnd({ animated: true })}
+            style={{ position: 'absolute', right: 16, bottom: 90, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 8, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 }}
+          >
+            <Ionicons name="chevron-down" size={22} color="#007AFF" />
+          </TouchableOpacity>
+        )}
 
         <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
           <View style={styles.viewerBackdrop}>

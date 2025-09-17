@@ -53,6 +53,20 @@ export function bindMessagingRealtime(socket: Socket, handlers: {
     console.log('📨 Événement new_message reçu:', data);
     handlers.onNewMessage?.(data);
   });
+
+  // Autres alias possibles côté backend
+  socket.on('messagerie:new_message', (data: any) => {
+    console.log('📨 Événement messagerie:new_message reçu:', data);
+    handlers.onNewMessage?.(data);
+  });
+  socket.on('messageCreated', (data: any) => {
+    console.log('📨 Événement messageCreated reçu:', data);
+    handlers.onNewMessage?.(data);
+  });
+  socket.on('message:created', (data: any) => {
+    console.log('📨 Événement message:created reçu:', data);
+    handlers.onNewMessage?.(data);
+  });
   
   socket.on('message:read', (payload: any) => {
     console.log('👁️ Événement message:read reçu:', payload);
@@ -69,13 +83,15 @@ export function bindMessagingRealtime(socket: Socket, handlers: {
 }
 
 export function joinConversation(socket: Socket, conversationId: string) {
-  console.log('🔌 Rejoindre conversation:', conversationId);
-  socket.emit('join_conversation', { conversationId });
+  const room = `conversation:${conversationId}`;
+  console.log('🔌 Rejoindre room:', room);
+  socket.emit('join-room', room);
 }
 
 export function leaveConversation(socket: Socket, conversationId: string) {
-  console.log('🔌 Quitter conversation:', conversationId);
-  socket.emit('leave_conversation', { conversationId });
+  const room = `conversation:${conversationId}`;
+  console.log('🔌 Quitter room:', room);
+  socket.emit('leave-room', room);
 }
 
 export function bindRdvRealtime(socket: Socket, handlers: {

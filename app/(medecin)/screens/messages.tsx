@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { API_BASE_URL, apiService, Conversation, Patient } from '../../../services/api';
 import { useNotifications } from '../../../services/notificationContext';
-import { bindMessagingRealtime, createSocket } from '../../../services/socket';
+import { bindMessagingRealtime, createSocket, joinConversation } from '../../../services/socket';
 
 export default function MedecinMessagesScreen() {
   const router = useRouter();
@@ -29,11 +29,15 @@ export default function MedecinMessagesScreen() {
   const [userPhotoById, setUserPhotoById] = useState<Record<string, string>>({});
   const { updateUnreadCount } = useNotifications();
 
-  const loadConversations = async () => {
+  const loadConversations = async (socketInstance?: any) => {
     try {
       setLoading(true);
       const response = await apiService.getConversations();
-      setConversations(response.data || []);
+      const list = response.data || [];
+      setConversations(list);
+      if (socketInstance && Array.isArray(list)) {
+        list.forEach(c => joinConversation(socketInstance, c.idconversation));
+      }
     } catch (error) {
       console.error('Erreur chargement conversations:', error);
       Alert.alert('Erreur', 'Impossible de charger les conversations');
@@ -70,25 +74,32 @@ export default function MedecinMessagesScreen() {
     (async () => {
       try {
         const socket = await createSocket();
+        await loadConversations(socket);
         bindMessagingRealtime(socket, {
           onNewMessage: (data) => {
             console.log('📨 Nouveau message reçu dans liste médecin:', data);
             // Le backend envoie { message: {...}, conversationId: "..." }
             const message = data?.message || data;
-            const conversationId = data?.conversationId || data?.conversation_id;
-            
-            // Mettre à jour la conversation spécifique
-            setConversations(prev => 
-              prev.map(conv => 
-                conv.idconversation === conversationId
-                  ? {
-                      ...conv,
-                      dernier_message: message,
-                      nombre_messages_non_lus: (conv.nombre_messages_non_lus || 0) + 1
-                    }
-                  : conv
-              )
-            );
+            const conversationId = data?.conversationId || data?.conversation_id || message?.conversation_id;
+            AsyncStorage.getItem('currentConversationId').then((currentId) => {
+              const isActive = currentId && conversationId && String(currentId) === String(conversationId);
+              setConversations(prev => {
+                const exists = prev.some(conv => conv.idconversation === conversationId);
+                if (!exists && conversationId) {
+                  loadConversations(socket);
+                  return prev;
+                }
+                return prev.map(conv => 
+                  conv.idconversation === conversationId
+                    ? {
+                        ...conv,
+                        dernier_message: message,
+                        nombre_messages_non_lus: isActive ? 0 : (conv.nombre_messages_non_lus || 0) + 1
+                      }
+                    : conv
+                );
+              });
+            }).catch(() => {});
           },
           onConversationRead: (data) => {
             console.log('👁️ Conversation lue par médecin:', data);

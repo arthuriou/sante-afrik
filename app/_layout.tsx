@@ -2,13 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, usePathname, useRouter } from "expo-router";
 import { useEffect } from 'react';
 import { apiService } from '../services/api';
+import { notificationService } from '../services/notificationService';
 
 export default function RootLayout() {
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const enforceAuthSeparation = async () => {
+    const initializeApp = async () => {
       try {
         // Tenter d'initialiser/rafraîchir la session au boot
         await apiService.initializeSession();
@@ -20,10 +21,18 @@ export default function RootLayout() {
         if (!token && inApp) {
           router.replace('/(auth)/patient/login');
         }
-      } catch {}
+
+        // 2) Initialiser le service de notifications si connecté
+        if (token) {
+          await notificationService.initialize();
+          notificationService.setupNotificationListeners();
+        }
+      } catch (error) {
+        console.error('❌ Erreur initialisation app:', error);
+      }
     };
 
-    enforceAuthSeparation();
+    initializeApp();
   }, [pathname]);
 
   return (

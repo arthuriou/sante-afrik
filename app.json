@@ -1,46 +1,62 @@
 {
   "expo": {
-    "name": "sante-afrik",
+    "name": "Santé Afrik",
     "slug": "sante-afrik",
     "version": "1.0.0",
+    "extra": {
+      "eas": {
+        "projectId": "70db8865-35e0-497a-9bae-28d0454cd75f"
+      }
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "santeafrik",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.santeafrik.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.santeafrik.app"
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router",
       [
-        "expo-splash-screen",
+        "expo-notifications",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "icon": "./assets/images/icon.png",
+          "color": "#ffffff",
+          "sounds": [
+            "./assets/sounds/notification.mp3",
+            "./assets/sounds/message.mp3",
+            "./assets/sounds/appointment.mp3",
+            "./assets/sounds/reminder.mp3",
+            "./assets/sounds/emergency.mp3",
+            "./assets/sounds/COMCell_Message 1 (ID 1111)_LS.mp3"
+          ]
         }
-      ],
-      "expo-web-browser"
+      ]
     ],
-    "extra": {
-      "apiUrl": "http://192.168.1.86:3000"
+    "notification": {
+      "icon": "./assets/images/icon.png",
+      "color": "#ffffff",
+      "iosDisplayInForeground": true,
+      "androidMode": "default",
+      "androidCollapsedTitle": "Santé Afrik"
     },
-    "experiments": {
-      "typedRoutes": true
-    }
+    "owner": "arthuriousk"
   }
 }
