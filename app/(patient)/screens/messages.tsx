@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { API_BASE_URL, apiService, Conversation } from '../../../services/api';
+import { bindMessagingRealtime, createSocket } from '../../../services/socket';
 
 export default function MessagesScreen() {
   const router = useRouter();
@@ -32,6 +33,14 @@ export default function MessagesScreen() {
     setRefreshing(false);
   };
 
+  // Rafraîchir automatiquement quand on revient sur l'écran
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 Focus sur l\'écran messages patient - rafraîchissement automatique');
+      loadConversations();
+    }, [])
+  );
+
   // Charger au montage du composant
   useEffect(() => {
     loadConversations();
@@ -47,6 +56,55 @@ export default function MessagesScreen() {
       }
     };
     getMyId();
+
+    // Configurer les événements en temps réel
+    let socket: any;
+    const setupRealtime = async () => {
+      try {
+        socket = await createSocket();
+        bindMessagingRealtime(socket, {
+          onNewMessage: (data) => {
+            console.log('📨 Nouveau message reçu dans liste patient:', data);
+            // Le backend envoie { message: {...}, conversationId: "..." }
+            const message = data?.message || data;
+            const conversationId = data?.conversationId || data?.conversation_id;
+            
+            // Mettre à jour la conversation spécifique
+            setConversations(prev => 
+              prev.map(conv => 
+                conv.idconversation === conversationId
+                  ? {
+                      ...conv,
+                      dernier_message: message,
+                      nombre_messages_non_lus: (conv.nombre_messages_non_lus || 0) + 1
+                    }
+                  : conv
+              )
+            );
+          },
+          onConversationRead: (data) => {
+            console.log('👁️ Conversation lue:', data);
+            // Mettre à jour le statut de lecture
+            setConversations(prev => 
+              prev.map(conv => 
+                conv.idconversation === data.conversation_id 
+                  ? { ...conv, nombre_messages_non_lus: 0 }
+                  : conv
+              )
+            );
+          }
+        });
+      } catch (error) {
+        console.error('Erreur setup temps réel:', error);
+      }
+    };
+    setupRealtime();
+
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
   }, []);
 
   const renderEmptyState = () => (

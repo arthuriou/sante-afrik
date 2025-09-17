@@ -1,18 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  RefreshControl,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    RefreshControl,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { API_BASE_URL, apiService, Conversation, Patient } from '../../../services/api';
 import { bindMessagingRealtime, createSocket } from '../../../services/socket';
@@ -46,6 +46,14 @@ export default function MedecinMessagesScreen() {
     setRefreshing(false);
   };
 
+  // Rafraîchir automatiquement quand on revient sur l'écran
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 Focus sur l\'écran messages médecin - rafraîchissement automatique');
+      loadConversations();
+    }, [])
+  );
+
   useEffect(() => {
     loadConversations();
     // Précharger patients pour démarrer une conversation si liste vide
@@ -57,11 +65,44 @@ export default function MedecinMessagesScreen() {
     })();
     // Socket temps réel: rafraîchir la liste quand nouveau message
     (async () => {
-      const socket = await createSocket();
-      bindMessagingRealtime(socket, {
-        onNewMessage: () => loadConversations(),
-      });
-      setSocketReady(true);
+      try {
+        const socket = await createSocket();
+        bindMessagingRealtime(socket, {
+          onNewMessage: (data) => {
+            console.log('📨 Nouveau message reçu dans liste médecin:', data);
+            // Le backend envoie { message: {...}, conversationId: "..." }
+            const message = data?.message || data;
+            const conversationId = data?.conversationId || data?.conversation_id;
+            
+            // Mettre à jour la conversation spécifique
+            setConversations(prev => 
+              prev.map(conv => 
+                conv.idconversation === conversationId
+                  ? {
+                      ...conv,
+                      dernier_message: message,
+                      nombre_messages_non_lus: (conv.nombre_messages_non_lus || 0) + 1
+                    }
+                  : conv
+              )
+            );
+          },
+          onConversationRead: (data) => {
+            console.log('👁️ Conversation lue par médecin:', data);
+            // Mettre à jour le statut de lecture
+            setConversations(prev => 
+              prev.map(conv => 
+                conv.idconversation === data.conversation_id 
+                  ? { ...conv, nombre_messages_non_lus: 0 }
+                  : conv
+              )
+            );
+          }
+        });
+        setSocketReady(true);
+      } catch (error) {
+        console.error('Erreur setup socket médecin:', error);
+      }
     })();
   }, []);
 

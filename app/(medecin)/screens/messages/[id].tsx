@@ -3,9 +3,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
-import { useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -130,24 +130,80 @@ export default function MedecinConversationScreen() {
     }
   };
 
+  // Rafraîchir automatiquement quand on revient sur l'écran
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 Focus sur la conversation médecin - rafraîchissement automatique');
+      loadMessages();
+    }, [id])
+  );
+
   useEffect(() => {
     loadMessages();
     loadConversationHeader();
+    
+    // Marquer la conversation comme lue quand on entre dedans
+    const markAsRead = async () => {
+      try {
+        await apiService.markConversationAsRead(String(id));
+      } catch (error) {
+        console.log('Erreur marquer comme lu:', error);
+      }
+    };
+    markAsRead();
+    
     let s: any;
     (async () => {
       s = await createSocket();
       joinConversation(s, String(id));
       bindMessagingRealtime(s, {
-        onNewMessage: (m) => {
-          if (m?.conversation_id !== id) return;
-          const mid = String(m.idmessage || '');
+        onNewMessage: (data) => {
+          console.log('📨 Nouveau message reçu dans conversation médecin:', data);
+          
+          // Essayer différentes structures de données
+          let message = data;
+          let conversationId = String(id);
+          
+          if (data?.message) {
+            message = data.message;
+            conversationId = String(data.conversationId || data.conversation_id || id);
+          }
+          
+          // Vérifier que c'est bien pour cette conversation
+          if (conversationId !== String(id)) {
+            console.log('❌ Message ignoré - mauvaise conversation:', conversationId, 'vs', String(id));
+            return;
+          }
+          
+          const mid = String(message?.idmessage || '');
+          if (!mid) {
+            console.log('❌ Message ignoré - pas d\'ID');
+            return;
+          }
+          
           setMessages((prev) => {
-            if (mid && idsSeenRef.current.has(mid)) return prev;
-            if (mid) idsSeenRef.current.add(mid);
-            const withoutTmp = prev.filter(mm => !(String((mm as any).idmessage).startsWith('tmp-') && mm.contenu === m.contenu));
-            return [...withoutTmp, m];
+            // Éviter les doublons
+            if (idsSeenRef.current.has(mid)) {
+              console.log('❌ Message ignoré - déjà vu');
+              return prev;
+            }
+            idsSeenRef.current.add(mid);
+            
+            // Supprimer les messages temporaires avec le même contenu
+            const withoutTmp = prev.filter(mm => {
+              const isTmp = String((mm as any).idmessage).startsWith('tmp-');
+              const sameContent = mm.contenu === message.contenu;
+              return !(isTmp && sameContent);
+            });
+            
+            console.log('✅ Ajout du nouveau message médecin:', message);
+            return [...withoutTmp, message];
           });
-          setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+          
+          // Scroll vers le bas après un court délai
+          setTimeout(() => {
+            listRef.current?.scrollToEnd({ animated: true });
+          }, 100);
         },
         onConversationRead: (data) => {
           // Vérifier que l'événement concerne bien cette conversation
@@ -179,24 +235,46 @@ export default function MedecinConversationScreen() {
     if (!input.trim()) return;
     const content = input.trim();
     setInput('');
+    
+    const optimistic: Message = {
+      idmessage: `tmp-${Date.now()}`,
+      conversation_id: String(id),
+      expediteur_id: 'me',
+      contenu: content,
+      type_message: 'TEXTE' as any,
+      dateEnvoi: new Date().toISOString(),
+      expediteur: { idutilisateur: 'me', nom: '', prenom: '', email: '', role: '' },
+      lu_par: [],
+    };
+    
     try {
       setSending(true);
-      const optimistic: Message = {
-        idmessage: `tmp-${Date.now()}`,
-        conversation_id: String(id),
-        expediteur_id: 'me',
-        contenu: content,
-        type_message: 'TEXTE' as any,
-        dateEnvoi: new Date().toISOString(),
-        expediteur: { idutilisateur: 'me', nom: '', prenom: '', email: '', role: '' },
-        lu_par: [],
-      };
       setMessages((prev) => [...prev, optimistic]);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+      
       await apiService.sendMessage(String(id), content);
+      console.log('✅ Message envoyé avec succès');
     } catch (error) {
-      Alert.alert('Erreur', 'Envoi impossible');
-      setInput(content); // Remettre le texte si l'envoi échoue
+      console.error('❌ Erreur envoi message:', error);
+      
+      // Retirer le message optimiste en cas d'échec
+      setMessages((prev) => prev.filter(msg => msg.idmessage !== optimistic.idmessage));
+      
+      // Proposer de réessayer
+      Alert.alert(
+        'Erreur d\'envoi', 
+        'Impossible d\'envoyer le message. Voulez-vous réessayer ?',
+        [
+          { text: 'Annuler', style: 'cancel', onPress: () => setInput(content) },
+          { 
+            text: 'Réessayer', 
+            onPress: () => {
+              setInput(content);
+              setTimeout(() => send(), 500); // Réessayer après un court délai
+            }
+          }
+        ]
+      );
     } finally {
       setSending(false);
     }
@@ -414,7 +492,10 @@ export default function MedecinConversationScreen() {
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
-    const isMine = (item as any).est_mien === true || item.expediteur_id === 'me';
+    // Logique robuste pour déterminer si c'est mon message
+    const isMine = item.expediteur_id === 'me' || 
+                   (item as any).est_mien === true ||
+                   (item as any).expediteur_id === 'me';
     const typeMessage = (item as any).type_message || (item as any).typemessage;
     const isImageFlag = typeMessage === 'IMAGE';
     const isFile = typeMessage === 'FICHIER';
