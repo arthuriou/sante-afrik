@@ -62,6 +62,8 @@ class NotificationService {
       
       // Demander les permissions
       await this.requestPermissions();
+      // Configurer les channels Android (sons/vibration)
+      await this.configureAndroidChannels();
       
       // Enregistrer le device
       await this.registerDevice();
@@ -72,6 +74,39 @@ class NotificationService {
       console.log('✅ Service de notifications initialisé');
     } catch (error) {
       console.error('❌ Erreur initialisation notifications:', error);
+    }
+  }
+
+  // Configurer les canaux Android pour les sons personnalisés
+  private async configureAndroidChannels() {
+    try {
+      if (Platform.OS !== 'android') return;
+      // Utiliser le son "message" inclus (./assets/sounds/message.mp3)
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Notifications',
+        importance: Notifications.AndroidImportance.MAX,
+        sound: 'comcell_message_1_ls', // nom du fichier sans extension
+        vibrationPattern: [0, 250, 250, 250],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+        enableLights: true,
+        enableVibrate: true,
+        lightColor: '#FF0000'
+      } as any);
+      await Notifications.setNotificationChannelAsync('messages', {
+        name: 'Messages',
+        importance: Notifications.AndroidImportance.MAX,
+        sound: 'comcell_message_1_ls' ,
+        vibrationPattern: [0, 200, 100, 200],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
+        enableLights: true,
+        enableVibrate: true,
+        lightColor: '#007AFF'
+      } as any);
+      console.log('📣 Canaux Android configurés');
+    } catch (error) {
+      console.log('⚠️ Impossible de configurer les canaux Android:', error);
     }
   }
 
@@ -446,7 +481,7 @@ class NotificationService {
               conversationId,
               screen: 'messages'
             },
-            sound: preferences.soundenabled ? preferences.soundfile : false,
+            sound: preferences.soundenabled ? (preferences.soundfile?.replace('/sounds/', '').replace('.mp3', '') || 'message') : false,
           },
           trigger: null, // Immédiat
         };

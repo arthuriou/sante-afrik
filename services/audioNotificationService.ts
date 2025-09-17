@@ -1,6 +1,9 @@
 import { Audio } from 'expo-av';
 import { notificationService } from './notificationService';
 
+// Désactivé: pour éviter les erreurs Metro tant que le fichier n'est pas renommé sans espaces/parenthèses
+function resolveSoundModule(_soundPath?: string): any | null { return null; }
+
 class AudioNotificationService {
   private soundObject: Audio.Sound | null = null;
   private isPlaying = false;
@@ -17,10 +20,11 @@ class AudioNotificationService {
       }
 
       // Utiliser le son spécifié ou celui des préférences
-      const soundToPlay = soundFile || preferences.soundfile;
-      
-      if (!soundToPlay) {
-        console.log('⚠️ Aucun son de notification configuré');
+      const soundToPlay = soundFile || preferences.soundfile || '';
+      const soundModule = resolveSoundModule(soundToPlay);
+
+      if (!soundModule) {
+        console.log('⚠️ Aucun son packagé trouvé, on n\'émet pas de son in-app');
         return;
       }
 
@@ -34,14 +38,7 @@ class AudioNotificationService {
       this.soundObject = new Audio.Sound();
       
       // Charger le son
-      await this.soundObject.loadAsync(
-        { uri: soundToPlay },
-        { 
-          shouldPlay: true,
-          volume: preferences.volume || 0.7,
-          isLooping: false,
-        }
-      );
+      await this.soundObject.loadAsync(soundModule, { shouldPlay: true, isLooping: false });
 
       this.isPlaying = true;
 

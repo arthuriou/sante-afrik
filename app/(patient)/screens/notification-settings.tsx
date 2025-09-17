@@ -26,6 +26,7 @@ export default function NotificationSettingsScreen() {
     { value: '/sounds/appointment.mp3', label: 'Rendez-vous' },
     { value: '/sounds/reminder.mp3', label: 'Rappel' },
     { value: '/sounds/emergency.mp3', label: 'Urgence' },
+    { value: '/sounds/COMCell_Message 1 (ID 1111)_LS.mp3', label: 'COMCell Message' },
   ];
 
   const loadPreferences = async () => {
