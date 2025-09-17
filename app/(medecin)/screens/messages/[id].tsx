@@ -64,20 +64,70 @@ export default function MedecinConversationScreen() {
     try {
       const conv = await apiService.getConversation(String(id));
       const c: any = (conv as any)?.data || conv;
-      const other = c?.participants?.find((p: any) => p?.role_participant === 'MEMBRE');
-      if (other) {
-        const name = `${other.utilisateur?.prenom || ''} ${other.utilisateur?.nom || ''}`.trim();
-        if (name) setContactName(name);
-        let pp = other.utilisateur?.photoprofil;
-        if (!pp && other.utilisateur?.idutilisateur) {
+      
+      // Récupère mon profil pour connaître mon idutilisateur
+      let meId: string | undefined;
+      try {
+        const me = await apiService.getProfile();
+        meId = (me as any)?.data?.idutilisateur || (me as any)?.data?.id;
+      } catch {}
+
+      // Garder la structure des participants
+      const parts: any[] = Array.isArray(c?.participants) ? c.participants : [];
+
+      // L'autre participant (différent de moi) - le patient
+      const others = parts.filter((p: any) => String(p?.utilisateur?.idutilisateur) !== String(meId));
+      const target = others.find((p: any) => p?.role_participant === 'MEMBRE') || others[0];
+
+      if (target?.utilisateur) {
+        const u = target.utilisateur;
+        const fullName = [`${u?.prenom || ''}`.trim(), `${u?.nom || ''}`.trim()].filter(Boolean).join(' ').trim() || u?.nom || 'Patient';
+        setContactName(fullName);
+
+        // Utiliser seulement les champs qui existent dans la DB
+        let avatar = u.photoprofil || u.photo || target.photoprofil || target.photo;
+
+        // Normaliser l'URL de l'avatar
+        if (avatar) {
+          let normalizedUrl = avatar;
+          if (avatar.startsWith('https://res.cloudinary.com/')) {
+            normalizedUrl = avatar;
+          } else if (avatar.startsWith('http')) {
+            normalizedUrl = avatar;
+          } else if (avatar.startsWith('/')) {
+            normalizedUrl = `${API_BASE_URL}${avatar}`;
+          } else {
+            normalizedUrl = `${API_BASE_URL}/${avatar}`;
+          }
+          setContactPhoto(normalizedUrl);
+        } else if (u?.idutilisateur) {
+          // Fallback API : récupérer la photo du patient via son ID
           try {
-            const u = await apiService.getUserById(other.utilisateur.idutilisateur);
-            pp = (u as any)?.data?.photoprofil || u?.data?.photoprofil;
-          } catch {}
+            const userResponse = await apiService.getUserById(u.idutilisateur);
+            const userData = (userResponse as any)?.data || userResponse;
+            const fallbackAvatar = userData?.photoprofil || userData?.photo;
+            
+            if (fallbackAvatar) {
+              let normalizedUrl = fallbackAvatar;
+              if (fallbackAvatar.startsWith('https://res.cloudinary.com/')) {
+                normalizedUrl = fallbackAvatar;
+              } else if (fallbackAvatar.startsWith('http')) {
+                normalizedUrl = fallbackAvatar;
+              } else if (fallbackAvatar.startsWith('/')) {
+                normalizedUrl = `${API_BASE_URL}${fallbackAvatar}`;
+              } else {
+                normalizedUrl = `${API_BASE_URL}/${fallbackAvatar}`;
+              }
+              setContactPhoto(normalizedUrl);
+            }
+          } catch (e) {
+            console.log('❌ Fallback avatar failed:', e);
+          }
         }
-        if (pp) setContactPhoto(pp.startsWith('http') ? pp : `${API_BASE_URL}${pp}`);
       }
-    } catch {}
+    } catch (error) {
+      console.log('❌ Erreur loadConversationHeader:', error);
+    }
   };
 
   useEffect(() => {
