@@ -1,10 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, usePathname } from 'expo-router';
 import { useEffect } from 'react';
-import { Alert, BackHandler, Platform } from 'react-native';
+import { Alert, BackHandler, Platform, Text, View } from 'react-native';
+import { AudioProvider } from '../../services/audioContext';
+import { NotificationProvider, useNotifications } from '../../services/notificationContext';
 
-export default function MedecinLayout() {
+function MedecinTabs() {
   const pathname = usePathname();
+  const { unreadMessagesCount } = useNotifications();
 
   useEffect(() => {
     const onBackPress = () => {
@@ -92,7 +95,32 @@ export default function MedecinLayout() {
         options={{
           title: "Messages",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={size} color={color} />
+            <View style={{ position: 'relative' }}>
+              <Ionicons name="chatbubbles" size={size} color={color} />
+              {unreadMessagesCount > 0 && (
+                <View style={{
+                  position: 'absolute',
+                  top: -2,
+                  right: -8,
+                  backgroundColor: '#FF3B30',
+                  borderRadius: 10,
+                  minWidth: 20,
+                  height: 20,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  borderWidth: 2,
+                  borderColor: '#FFFFFF',
+                }}>
+                  <Text style={{
+                    color: '#FFFFFF',
+                    fontSize: 12,
+                    fontWeight: '700',
+                  }}>
+                    {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           ),
           headerTitle: "Messages",
         }}
@@ -139,5 +167,15 @@ export default function MedecinLayout() {
         }}
       />
     </Tabs>
+  );
+}
+
+export default function MedecinLayout() {
+  return (
+    <AudioProvider>
+      <NotificationProvider>
+        <MedecinTabs />
+      </NotificationProvider>
+    </AudioProvider>
   );
 }

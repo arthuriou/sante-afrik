@@ -15,6 +15,7 @@ import {
     View,
 } from 'react-native';
 import { API_BASE_URL, apiService, Conversation, Patient } from '../../../services/api';
+import { useNotifications } from '../../../services/notificationContext';
 import { bindMessagingRealtime, createSocket } from '../../../services/socket';
 
 export default function MedecinMessagesScreen() {
@@ -26,6 +27,7 @@ export default function MedecinMessagesScreen() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState('');
   const [userPhotoById, setUserPhotoById] = useState<Record<string, string>>({});
+  const { updateUnreadCount } = useNotifications();
 
   const loadConversations = async () => {
     try {
@@ -51,6 +53,7 @@ export default function MedecinMessagesScreen() {
     useCallback(() => {
       console.log('🔄 Focus sur l\'écran messages médecin - rafraîchissement automatique');
       loadConversations();
+      updateUnreadCount(); // Mettre à jour le compteur de notifications
     }, [])
   );
 

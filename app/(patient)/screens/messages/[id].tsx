@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
@@ -26,6 +27,7 @@ import { VoiceMessagePlayer } from '../../../../components/VoiceMessagePlayer';
 import { VoiceRecorder } from '../../../../components/VoiceRecorder';
 import { API_BASE_URL, apiService, Message } from '../../../../services/api';
 import { AudioService } from '../../../../services/audio';
+import { useNotifications } from '../../../../services/notificationContext';
 import { bindMessagingRealtime, createSocket, joinConversation, leaveConversation } from '../../../../services/socket';
 
 export default function PatientConversationScreen() {
@@ -45,17 +47,84 @@ export default function PatientConversationScreen() {
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [recordingAudio, setRecordingAudio] = useState<{uri: string, duration: number} | null>(null);
   const audioService = useRef(new AudioService()).current;
+  const { updateUnreadCount } = useNotifications();
+
+  // Fonctions de cache local pour les messages
+  const saveMessagesToCache = async (messages: Message[]) => {
+    try {
+      const cacheKey = `messages_${id}`;
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(messages));
+      console.log('💾 Messages sauvegardés en cache:', messages.length);
+    } catch (error) {
+      console.log('❌ Erreur sauvegarde cache:', error);
+    }
+  };
+
+  const loadMessagesFromCache = async (): Promise<Message[]> => {
+    try {
+      const cacheKey = `messages_${id}`;
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) {
+        const messages = JSON.parse(cached);
+        console.log('📂 Messages chargés depuis le cache:', messages.length);
+        return messages;
+      }
+    } catch (error) {
+      console.log('❌ Erreur chargement cache:', error);
+    }
+    return [];
+  };
 
   const loadMessages = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getMessages(id);
-      setMessages(response.data || []);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 100);
-      await apiService.markConversationAsRead(id);
+      console.log('🔄 Chargement des messages pour la conversation:', id);
+      
+      // D'abord, charger depuis le cache pour un affichage immédiat
+      const cachedMessages = await loadMessagesFromCache();
+      if (cachedMessages.length > 0) {
+        setMessages(cachedMessages);
+        console.log('📱 Messages affichés depuis le cache:', cachedMessages.length);
+      }
+      
+      // Ensuite, charger depuis l'API pour avoir les données à jour
+      const response = await apiService.getMessages(String(id), 100, 0);
+      console.log('📨 Messages reçus de l\'API:', response);
+      
+      const apiMessages = response.data || response || [];
+      console.log('📝 Nombre de messages chargés depuis l\'API:', apiMessages.length);
+      
+      // Mettre à jour avec les messages de l'API
+      setMessages(apiMessages);
+      
+      // Sauvegarder en cache
+      await saveMessagesToCache(apiMessages);
+      
+      // Scroll vers le bas après que les messages soient rendus
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          listRef.current?.scrollToEnd({ animated: false });
+        }, 200);
+      });
+      
+      // Marquer la conversation comme lue
+      await apiService.markConversationAsRead(String(id));
+      console.log('✅ Conversation marquée comme lue');
+      
+      // Mettre à jour le compteur de notifications
+      updateUnreadCount();
+      
     } catch (error) {
-      console.error('Erreur chargement messages:', error);
-      Alert.alert('Erreur', 'Impossible de charger les messages');
+      console.error('❌ Erreur chargement messages:', error);
+      
+      // En cas d'erreur API, essayer de charger depuis le cache
+      const cachedMessages = await loadMessagesFromCache();
+      if (cachedMessages.length > 0) {
+        setMessages(cachedMessages);
+        console.log('📱 Messages de secours chargés depuis le cache:', cachedMessages.length);
+      } else {
+        Alert.alert('Erreur', 'Impossible de charger les messages');
+      }
     } finally {
       setLoading(false);
     }
@@ -136,8 +205,41 @@ export default function PatientConversationScreen() {
     useCallback(() => {
       console.log('🔄 Focus sur la conversation patient - rafraîchissement automatique');
       loadMessages();
+      
+      // Forcer le scroll vers le bas après un court délai
+      setTimeout(() => {
+        listRef.current?.scrollToEnd({ animated: false });
+      }, 300);
     }, [id])
   );
+
+  // Effet pour scroller vers le bas quand les messages changent
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Utiliser requestAnimationFrame pour s'assurer que le rendu est terminé
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          listRef.current?.scrollToEnd({ animated: false });
+        }, 100);
+      });
+    }
+  }, [messages.length]);
+
+  // Nettoyer le cache quand on quitte l'écran
+  useEffect(() => {
+    return () => {
+      // Nettoyer le cache après 5 minutes d'inactivité
+      setTimeout(async () => {
+        try {
+          const cacheKey = `messages_${id}`;
+          await AsyncStorage.removeItem(cacheKey);
+          console.log('🧹 Cache nettoyé pour la conversation:', id);
+        } catch (error) {
+          console.log('❌ Erreur nettoyage cache:', error);
+        }
+      }, 5 * 60 * 1000); // 5 minutes
+    };
+  }, [id]);
 
   useEffect(() => {
     loadMessages();
@@ -255,6 +357,12 @@ export default function PatientConversationScreen() {
       
       await apiService.sendMessage(String(id), content);
       console.log('✅ Message envoyé avec succès');
+      
+      // Sauvegarder les messages en cache après envoi
+      setTimeout(async () => {
+        const currentMessages = await loadMessagesFromCache();
+        await saveMessagesToCache([...currentMessages, optimistic]);
+      }, 100);
     } catch (error) {
       console.error('❌ Erreur envoi message:', error);
       
@@ -497,6 +605,9 @@ export default function PatientConversationScreen() {
     const isMine = item.expediteur_id === 'me' || 
                    (item as any).est_mien === true ||
                    (item as any).expediteur_id === 'me';
+    
+    // Déterminer si le message a été lu (double checkmark)
+    const isRead = isMine && (item as any).lu_par?.length > 0;
     const typeMessage = (item as any).type_message || (item as any).typemessage;
     const isImageFlag = typeMessage === 'IMAGE';
     const isFile = typeMessage === 'FICHIER';
@@ -553,8 +664,13 @@ export default function PatientConversationScreen() {
         </View>
         <View style={[styles.messageFooter, isMine ? styles.messageFooterRight : styles.messageFooterLeft]}>
           <Text style={[styles.bubbleTime, isMine && styles.bubbleTimeRight]}>{safeTime}</Text>
-          {isMine && (item as any).lu_par?.length > 0 && (
-            <Ionicons name="checkmark-done" size={12} color="#34C759" style={{ marginLeft: 4 }} />
+          {isMine && (
+            <Ionicons 
+              name={isRead ? "checkmark-done" : "checkmark"} 
+              size={12} 
+              color={isRead ? "#34C759" : "#8E8E93"} 
+              style={{ marginLeft: 4 }} 
+            />
           )}
         </View>
       </View>
@@ -625,7 +741,7 @@ export default function PatientConversationScreen() {
                 onPress={() => setShowVoiceRecorder(true)}
                 disabled={uploading || sending}
               >
-                <Ionicons name="mic" size={22} color="#8E8E93" />
+                <Ionicons name="mic-outline" size={20} color="#8E8E93" />
               </TouchableOpacity>
             </View>
             <TouchableOpacity style={styles.sendButton} onPress={send} disabled={!input.trim() || sending}>
@@ -636,15 +752,17 @@ export default function PatientConversationScreen() {
           {/* Prévisualisation de l'enregistrement vocal */}
           {recordingAudio && (
             <View style={styles.recordingPreview}>
-              <Ionicons name="musical-notes" size={20} color="#007AFF" />
+              <View style={styles.recordingIconContainer}>
+                <Ionicons name="mic-outline" size={20} color="#007AFF" />
+              </View>
               <Text style={styles.recordingText}>
                 Note vocale ({Math.floor(recordingAudio.duration)}s)
               </Text>
               <TouchableOpacity onPress={sendVoiceMessage} style={styles.sendRecordingButton}>
-                <Ionicons name="send" size={16} color="white" />
+                <Ionicons name="checkmark" size={16} color="white" />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setRecordingAudio(null)} style={styles.cancelRecordingButton}>
-                <Ionicons name="close" size={16} color="white" />
+                <Ionicons name="close-outline" size={16} color="white" />
               </TouchableOpacity>
             </View>
           )}
@@ -693,9 +811,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#F8F8F8',
+    backgroundColor: '#F2F2F7',
     borderBottomWidth: 0.5,
-    borderBottomColor: '#D1D1D6',
+    borderBottomColor: '#C6C6C8',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   backButton: { 
     padding: 4,
@@ -714,14 +840,16 @@ const styles = StyleSheet.create({
   },
   messagesListContainer: {
     flex: 1,
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#F2F2F7',
   },
   messagesListContent: {
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   messageContainer: {
-    marginVertical: 4,
-    maxWidth: '85%',
+    marginVertical: 2,
+    maxWidth: '80%',
+    marginHorizontal: 4,
   },
   messageContainerLeft: {
     alignSelf: 'flex-start',
@@ -730,30 +858,39 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   bubble: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   bubbleLeft: { 
     backgroundColor: '#FFFFFF',
-    borderBottomLeftRadius: 4,
+    borderBottomLeftRadius: 6,
   },
   bubbleRight: { 
     backgroundColor: '#007AFF',
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: 6,
   },
   bubbleText: { 
     color: '#000000',
-    fontSize: 16,
-    lineHeight: 21,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '400',
   },
   bubbleTextRight: { 
     color: '#FFFFFF',
   },
   messageImage: {
-    width: 220,
-    height: 220,
-    borderRadius: 12,
+    width: 240,
+    height: 240,
+    borderRadius: 16,
     backgroundColor: '#E5E5EA',
   },
   fileContainer: {
@@ -775,71 +912,88 @@ const styles = StyleSheet.create({
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    marginTop: 4,
+    justifyContent: 'space-between',
   },
   messageFooterLeft: {
     justifyContent: 'flex-start',
-    paddingLeft: 4,
+    paddingLeft: 6,
   },
   messageFooterRight: {
     justifyContent: 'flex-end',
-    paddingRight: 4,
+    paddingRight: 6,
   },
   bubbleTime: { 
-    fontSize: 11, 
-    color: '#8E8E93', 
+    fontSize: 12, 
+    color: '#8E8E93',
+    fontWeight: '400',
   },
   bubbleTimeRight: { 
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: '#F8F8F8',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F2F2F7',
     borderTopWidth: 0.5,
-    borderTopColor: '#D1D1D6',
+    borderTopColor: '#C6C6C8',
   },
   inputContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: 0.5,
-    borderColor: '#D1D1D6',
-    paddingHorizontal: 4,
-    marginRight: 10,
-    minHeight: 40,
+    borderColor: '#C6C6C8',
+    paddingHorizontal: 6,
+    marginRight: 12,
+    minHeight: 44,
     maxHeight: 120,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   input: {
     flex: 1,
-    paddingHorizontal: 10,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
-    fontSize: 16,
-    lineHeight: 20,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '400',
   },
   attachButton: { 
-    padding: 6,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
   voiceButton: { 
-    padding: 6,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
   voiceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0, 122, 255, 0.08)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 122, 255, 0.2)',
   },
   voiceIcon: {
-    marginRight: 10,
+    marginRight: 12,
   },
   voiceText: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#000000',
     flex: 1,
     fontWeight: '500',
@@ -848,30 +1002,39 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   voiceDuration: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#666666',
-    marginLeft: 8,
+    marginLeft: 10,
+    fontWeight: '400',
   },
   voiceDurationRight: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   recordingPreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0F8FF',
+    backgroundColor: 'rgba(0, 122, 255, 0.05)',
     padding: 12,
-    marginHorizontal: 10,
+    marginHorizontal: 16,
     marginBottom: 8,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: 'rgba(0, 122, 255, 0.15)',
+  },
+  recordingIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 122, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   recordingText: {
     flex: 1,
     fontSize: 16,
     color: '#007AFF',
-    marginLeft: 8,
-    fontWeight: '500',
+    marginLeft: 10,
+    fontWeight: '400',
   },
   sendRecordingButton: {
     backgroundColor: '#34C759',
@@ -885,16 +1048,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
-    marginLeft: 8,
+    marginLeft: 6,
   },
   sendButton: {
     backgroundColor: '#007AFF',
-    borderRadius: 18,
-    width: 36,
-    height: 36,
+    borderRadius: 20,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 2,
+    shadowColor: '#007AFF',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   viewerBackdrop: { 
     flex: 1, 

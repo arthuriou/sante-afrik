@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AudioService } from '../services/audio';
+import { useAudio } from '../services/audioContext';
 
 interface VoiceMessagePlayerProps {
   audioUri: string;
@@ -19,7 +20,11 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const audioService = useRef(new AudioService()).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
-  const updateInterval = useRef<NodeJS.Timeout | null>(null);
+  const updateInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { currentPlayingId, setCurrentPlayingId } = useAudio();
+  
+  // ID unique pour ce player
+  const playerId = useRef(audioUri).current;
 
   useEffect(() => {
     return () => {
@@ -29,6 +34,15 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
       }
     };
   }, []);
+
+  // Vérifier si un autre audio est en cours de lecture
+  useEffect(() => {
+    if (currentPlayingId !== playerId && isPlaying) {
+      // Un autre audio est en cours, arrêter celui-ci
+      setIsPlaying(false);
+      stopProgressTracking();
+    }
+  }, [currentPlayingId, playerId, isPlaying]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -73,9 +87,11 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
         // Pause
         await audioService.pauseAudio();
         setIsPlaying(false);
+        setCurrentPlayingId(null);
         stopProgressTracking();
       } else {
-        // Play
+        // Play - arrêter tous les autres audios d'abord
+        setCurrentPlayingId(playerId);
         setIsLoading(true);
         await audioService.playAudio(audioUri);
         setIsPlaying(true);
@@ -85,6 +101,7 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
     } catch (error) {
       console.error('Erreur lecture audio:', error);
       setIsLoading(false);
+      setCurrentPlayingId(null);
     }
   };
 
@@ -107,11 +124,11 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
         disabled={isLoading}
       >
         {isLoading ? (
-          <Ionicons name="hourglass" size={16} color={isMine ? "#FFFFFF" : "#007AFF"} />
+          <Ionicons name="hourglass-outline" size={20} color={isMine ? "#FFFFFF" : "#007AFF"} />
         ) : (
           <Ionicons 
-            name={isPlaying ? "pause" : "play"} 
-            size={16} 
+            name={isPlaying ? "pause-outline" : "play-outline"} 
+            size={20} 
             color={isMine ? "#FFFFFF" : "#007AFF"} 
           />
         )}
@@ -139,13 +156,6 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
           </Text>
         </View>
       </View>
-
-      {/* Indicateur de statut */}
-      {isMine && (
-        <View style={styles.statusContainer}>
-          <Ionicons name="checkmark-done" size={12} color="#34C759" />
-        </View>
-      )}
     </View>
   );
 };
@@ -154,32 +164,33 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minWidth: 200,
-    maxWidth: 280,
+    backgroundColor: 'rgba(0, 122, 255, 0.08)',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minWidth: 220,
+    maxWidth: 300,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 122, 255, 0.15)',
   },
   containerMine: {
     backgroundColor: '#007AFF',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   playButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 122, 255, 0.2)',
   },
   playButtonMine: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   progressContainer: {
     flex: 1,
@@ -188,13 +199,13 @@ const styles = StyleSheet.create({
     // Pas de changement de style pour le conteneur
   },
   progressTrack: {
-    height: 3,
-    backgroundColor: '#E5E5EA',
+    height: 4,
+    backgroundColor: 'rgba(0, 122, 255, 0.2)',
     borderRadius: 2,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   progressTrackMine: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
   progressFill: {
     height: '100%',
@@ -209,16 +220,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   timeText: {
-    fontSize: 11,
-    color: '#8E8E93',
+    fontSize: 12,
+    color: '#666666',
     fontWeight: '500',
   },
   timeTextMine: {
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  statusContainer: {
-    marginLeft: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    color: 'rgba(255, 255, 255, 0.9)',
   },
 });

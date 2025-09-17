@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { API_BASE_URL, apiService, Conversation } from '../../../services/api';
+import { useNotifications } from '../../../services/notificationContext';
 import { bindMessagingRealtime, createSocket } from '../../../services/socket';
 
 export default function MessagesScreen() {
@@ -11,6 +12,7 @@ export default function MessagesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [meId, setMeId] = useState<string | undefined>();
+  const { updateUnreadCount } = useNotifications();
 
   // Charger les conversations
   const loadConversations = async () => {
@@ -38,6 +40,7 @@ export default function MessagesScreen() {
     useCallback(() => {
       console.log('🔄 Focus sur l\'écran messages patient - rafraîchissement automatique');
       loadConversations();
+      updateUnreadCount(); // Mettre à jour le compteur de notifications
     }, [])
   );
 
