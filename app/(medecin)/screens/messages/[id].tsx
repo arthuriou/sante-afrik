@@ -7,21 +7,22 @@ import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    KeyboardAvoidingView,
+    Linking,
+    Modal,
+    Platform,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
+import { VoiceMessagePlayer } from '../../../../components/VoiceMessagePlayer';
 import { VoiceRecorder } from '../../../../components/VoiceRecorder';
 import { API_BASE_URL, apiService, Message } from '../../../../services/api';
 import { AudioService } from '../../../../services/audio';
@@ -409,18 +410,11 @@ export default function MedecinConversationScreen() {
               <Text style={[styles.fileName, isMine && styles.fileNameRight]}>{fileName || 'Pièce jointe'}</Text>
             </TouchableOpacity>
           ) : isVoiceFinal && displayUrl ? (
-            <TouchableOpacity 
-              onPress={() => playAudio(displayUrl)}
-              style={styles.voiceContainer}
-            >
-              <View style={styles.voiceIcon}>
-                <Ionicons name="play" size={24} color={isMine ? "#FFFFFF" : "#007AFF"} />
-              </View>
-              <Text style={[styles.voiceText, isMine && styles.voiceTextRight]}>Note vocale</Text>
-              <Text style={[styles.voiceDuration, isMine && styles.voiceDurationRight]}>
-                {contentStr?.match(/\((\d+)s\)/)?.[1] || '0'}s
-              </Text>
-            </TouchableOpacity>
+            <VoiceMessagePlayer
+              audioUri={displayUrl}
+              duration={parseInt(contentStr?.match(/\((\d+)s\)/)?.[1] || '0')}
+              isMine={isMine}
+            />
           ) : (
             <Text style={[styles.bubbleText, isMine && styles.bubbleTextRight]}>{contentStr}</Text>
           )}

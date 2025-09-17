@@ -9,6 +9,7 @@ export default function MessagesScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [meId, setMeId] = useState<string | undefined>();
 
   // Charger les conversations
   const loadConversations = async () => {
@@ -34,6 +35,18 @@ export default function MessagesScreen() {
   // Charger au montage du composant
   useEffect(() => {
     loadConversations();
+    
+    // Récupérer mon ID
+    const getMyId = async () => {
+      try {
+        const me = await apiService.getProfile();
+        const myId = (me as any)?.data?.idutilisateur || (me as any)?.data?.id;
+        setMeId(myId);
+      } catch (error) {
+        console.log('Erreur récupération profil:', error);
+      }
+    };
+    getMyId();
   }, []);
 
   const renderEmptyState = () => (
@@ -53,13 +66,35 @@ export default function MessagesScreen() {
   );
 
   const renderConversation = ({ item }: { item: Conversation }) => {
-    // Trouver l'autre participant (pas l'utilisateur actuel)
-    const otherParticipant = item.participants.find(p => p.role_participant === 'MEMBRE');
-    const contactName = otherParticipant ? `${otherParticipant.utilisateur.prenom} ${otherParticipant.utilisateur.nom}` : 'Contact';
+    // Debug: afficher les participants
+    console.log('🔍 Participants pour conversation:', item.idconversation, {
+      meId,
+      participants: item.participants.map(p => ({
+        id: p?.utilisateur?.idutilisateur,
+        role: p?.role_participant,
+        nom: `${p?.utilisateur?.prenom} ${p?.utilisateur?.nom}`,
+        isMe: meId ? String(p?.utilisateur?.idutilisateur) === String(meId) : false
+      }))
+    });
+
+    // Trouver le médecin (participant différent de moi)
+    // Puisque le type ne contient que MEMBRE/ADMIN, on prend simplement celui qui n'est pas moi
+    const finalParticipant = meId 
+      ? item.participants.find(p => String(p?.utilisateur?.idutilisateur) !== String(meId))
+      : item.participants[0]; // Si pas d'ID, prendre le premier
+    
+    console.log('👨‍⚕️ Médecin trouvé:', {
+      finalParticipant: finalParticipant ? `${finalParticipant.utilisateur?.prenom} ${finalParticipant.utilisateur?.nom}` : null
+    });
+    
+    const contactName = finalParticipant 
+      ? `${finalParticipant.utilisateur?.prenom || ''} ${finalParticipant.utilisateur?.nom || ''}`.trim() || 'Médecin'
+      : 'Médecin';
+    
     const lastMessage = item.dernier_message?.contenu || 'Aucun message';
     const timestamp = item.dernier_message?.dateEnvoi ? new Date(item.dernier_message.dateEnvoi).toLocaleDateString() : '';
     const hasUnread = item.nombre_messages_non_lus > 0;
-    const doctorPhoto = otherParticipant?.utilisateur?.photoprofil;
+    const doctorPhoto = (finalParticipant?.utilisateur as any)?.photoprofil;
 
     return (
       <TouchableOpacity 
@@ -71,8 +106,16 @@ export default function MessagesScreen() {
         <View style={styles.avatarContainer}>
           {doctorPhoto ? (
             <Image 
-              source={{ uri: doctorPhoto.startsWith('http') ? doctorPhoto : `${API_BASE_URL}${doctorPhoto}` }} 
-              style={styles.avatarImage} 
+              source={{ 
+                uri: doctorPhoto.startsWith('http') ? doctorPhoto : 
+                     doctorPhoto.startsWith('/') ? `${API_BASE_URL}${doctorPhoto}` : 
+                     `${API_BASE_URL}/${doctorPhoto}`
+              }} 
+              style={styles.avatarImage}
+              onError={() => {
+                // En cas d'erreur de chargement, on pourrait essayer de récupérer via API
+                console.log('Erreur chargement avatar médecin:', doctorPhoto);
+              }}
             />
           ) : (
             <View style={styles.avatar}>
