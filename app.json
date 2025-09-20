@@ -1,18 +1,14 @@
 {
   "expo": {
-    "name": "Santé Afrik",
-    "slug": "sante-afrik",
+    "name": "SantéAfrik",
+    "slug": "santeafrik",
     "version": "1.0.0",
-    "extra": {
-      "eas": {
-        "projectId": "70db8865-35e0-497a-9bae-28d0454cd75f"
-      }
-    },
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "main": "App.tsx",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -25,38 +21,32 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       },
-      "package": "com.santeafrik.app"
+      "package": "com.santeafrik.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
-          "color": "#ffffff",
-          "sounds": [
-            "./assets/sounds/notification.mp3",
-            "./assets/sounds/message.mp3",
-            "./assets/sounds/appointment.mp3",
-            "./assets/sounds/reminder.mp3",
-            "./assets/sounds/emergency.mp3",
-            "./assets/sounds/comcell_message_1_ls.mp3"
-          ]
+          "icon": "./assets/notification-icon.png",
+          "color": "#ffffff"
         }
       ]
     ],
-    "notification": {
-      "icon": "./assets/images/icon.png",
-      "color": "#ffffff",
-      "iosDisplayInForeground": true,
-      "androidMode": "default",
-      "androidCollapsedTitle": "Santé Afrik"
-    },
-    "owner": "arthuriousk"
+    "extra": {
+      "eas": {
+        "projectId": "70db8865-35e0-497a-9bae-28d0454cd75f"
+      }
+    }
   }
 }
