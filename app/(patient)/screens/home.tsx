@@ -2,16 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { apiService, User } from '../../../services/api';
 
@@ -103,7 +103,6 @@ export default function PatientHomeScreen() {
 
   const quickActions = [
     { id: 1, title: 'Prendre RDV', subtitle: 'Réserver en ligne', icon: 'calendar-outline', color: '#007AFF' },
-    { id: 2, title: 'Urgences', subtitle: 'Appeler le 15', icon: 'call-outline', color: '#FF3B30' },
   ];
 
   return (

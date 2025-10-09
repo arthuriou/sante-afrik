@@ -224,12 +224,9 @@ export default function MessagesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header iOS-style */}
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>
-        <TouchableOpacity style={styles.newMessageButton}>
-          <Ionicons name="create-outline" size={24} color="#007AFF" />
-        </TouchableOpacity>
       </View>
 
       {/* Content */}
@@ -263,22 +260,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F2F7',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#C6C6C8',
+    paddingTop: 20,
+    paddingBottom: 10,
   },
   headerTitle: {
     fontSize: 34,
     fontWeight: '700',
     color: '#000',
-  },
-  newMessageButton: {
-    padding: 8,
   },
   content: {
     flex: 1,
