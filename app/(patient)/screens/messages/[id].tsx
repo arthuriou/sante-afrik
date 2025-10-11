@@ -29,6 +29,7 @@ import { API_BASE_URL, apiService, Message } from '../../../../services/api';
 import { AudioService } from '../../../../services/audio';
 import { useNotifications } from '../../../../services/notificationContext';
 import { notificationService } from '../../../../services/notificationService';
+import { audioNotificationService } from '../../../../services/audioNotificationService';
 import { bindMessagingRealtime, createSocket, joinConversation, leaveConversation } from '../../../../services/socket';
 
 export default function PatientConversationScreen() {
@@ -40,8 +41,14 @@ export default function PatientConversationScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [input, setInput] = useState('');
+  const PAGE_SIZE = 30;
+  const [offset, setOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [uploading, setUploading] = useState(false);
   const listRef = useRef<FlatList>(null);
+  const initialScrollDoneRef = useRef(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const [contactName, setContactName] = useState<string>('Conversation');
   const [contactPhoto, setContactPhoto] = useState<string | null>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -52,30 +59,21 @@ export default function PatientConversationScreen() {
   const audioService = useRef(new AudioService()).current;
   const { updateUnreadCount } = useNotifications();
 
-  // Fonctions de cache local pour les messages
-  const saveMessagesToCache = async (messages: Message[]) => {
-    try {
-      const cacheKey = `messages_${id}`;
-      await AsyncStorage.setItem(cacheKey, JSON.stringify(messages));
-      console.log('💾 Messages sauvegardés en cache:', messages.length);
-    } catch (error) {
-      console.log('❌ Erreur sauvegarde cache:', error);
-    }
-  };
+  // Plus de cache local: flux en temps réel + fetch initial
 
-  const loadMessagesFromCache = async (): Promise<Message[]> => {
-    try {
-      const cacheKey = `messages_${id}`;
-      const cached = await AsyncStorage.getItem(cacheKey);
-      if (cached) {
-        const messages = JSON.parse(cached);
-        console.log('📂 Messages chargés depuis le cache:', messages.length);
-        return messages;
+  // Déduplication par idmessage, en conservant l'ordre
+  const uniqueById = (items: any[]): any[] => {
+    const seen = new Set<string>();
+    const result: any[] = [];
+    for (const it of items) {
+      const mid = String((it as any)?.idmessage || '');
+      if (!mid) continue;
+      if (!seen.has(mid)) {
+        seen.add(mid);
+        result.push(it);
       }
-    } catch (error) {
-      console.log('❌ Erreur chargement cache:', error);
     }
-    return [];
+    return result;
   };
 
   const loadMessages = async () => {
@@ -83,36 +81,21 @@ export default function PatientConversationScreen() {
       setLoading(true);
       console.log('🔄 Chargement des messages pour la conversation:', id);
       
-      // Charger depuis le cache pour un affichage immédiat
-      const cachedMessages = await loadMessagesFromCache();
-      const cachedById: Record<string, any> = {};
-      cachedMessages.forEach(m => { cachedById[String((m as any).idmessage)] = m; });
-      if (cachedMessages.length > 0) {
-        setMessages(cachedMessages);
-        console.log('📱 Messages affichés depuis le cache:', cachedMessages.length);
-      }
-      
-      // Charger depuis l'API et fusionner sans perte
-      const response = await apiService.getMessages(String(id), 100, 0);
+      // Charger depuis l'API
+      const response = await apiService.getMessages(String(id), PAGE_SIZE, 0);
       console.log('📨 Messages reçus de l\'API:', response);
       const apiMessages: any[] = (response as any)?.data?.data || (response as any)?.data || (Array.isArray(response) ? response : []);
       console.log('📝 Nombre de messages chargés depuis l\'API:', apiMessages.length);
-      
-      const map: Record<string, any> = { ...cachedById };
-      apiMessages.forEach(m => { map[String((m as any).idmessage)] = m; });
-      const merged = Object.values(map).sort((a: any, b: any) => (
+      // Ordonner du plus ancien au plus récent (oldest-first) pour affichage normal
+      const sortedAsc = apiMessages.sort((a: any, b: any) => (
         new Date((a as any).dateEnvoi || (a as any).dateenvoi || 0).getTime() -
         new Date((b as any).dateEnvoi || (b as any).dateenvoi || 0).getTime()
       ));
-      setMessages(merged as any);
-      await saveMessagesToCache(merged as any);
-      
-      // Scroll vers le bas après que les messages soient rendus
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          listRef.current?.scrollToEnd({ animated: false });
-        }, 200);
-      });
+      setMessages(uniqueById(sortedAsc as any));
+      setOffset(sortedAsc.length);
+      setHasMore(sortedAsc.length === PAGE_SIZE);
+      // Laisser onContentSizeChange faire le scroll initial
+      initialScrollDoneRef.current = false;
       
       // Marquer la conversation comme lue
       await apiService.markConversationAsRead(String(id));
@@ -123,15 +106,7 @@ export default function PatientConversationScreen() {
       
     } catch (error) {
       console.error('❌ Erreur chargement messages:', error);
-      
-      // En cas d'erreur API, essayer de charger depuis le cache
-      const cachedMessages = await loadMessagesFromCache();
-      if (cachedMessages.length > 0) {
-        setMessages(cachedMessages);
-        console.log('📱 Messages de secours chargés depuis le cache:', cachedMessages.length);
-      } else {
-        Alert.alert('Erreur', 'Impossible de charger les messages');
-      }
+      Alert.alert('Erreur', 'Impossible de charger les messages');
     } finally {
       setLoading(false);
     }
@@ -224,33 +199,32 @@ export default function PatientConversationScreen() {
     }, [id])
   );
 
-  // Effet pour scroller vers le bas quand les messages changent
-  useEffect(() => {
-    if (messages.length > 0) {
-      // Utiliser requestAnimationFrame pour s'assurer que le rendu est terminé
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          listRef.current?.scrollToEnd({ animated: false });
-        }, 100);
-      });
-    }
-  }, [messages.length]);
+  // (mergeUnique remplacé par uniqueById)
 
-  // Nettoyer le cache quand on quitte l'écran
-  useEffect(() => {
-    return () => {
-      // Nettoyer le cache après 5 minutes d'inactivité
-      setTimeout(async () => {
-        try {
-          const cacheKey = `messages_${id}`;
-          await AsyncStorage.removeItem(cacheKey);
-          console.log('🧹 Cache nettoyé pour la conversation:', id);
-        } catch (error) {
-          console.log('❌ Erreur nettoyage cache:', error);
-        }
-      }, 5 * 60 * 1000); // 5 minutes
-    };
-  }, [id]);
+  const loadMore = async () => {
+    if (loading || loadingMore || !hasMore) return;
+    try {
+      setLoadingMore(true);
+      const resp = await apiService.getMessages(String(id), PAGE_SIZE, offset);
+      const list: any[] = (resp as any)?.data?.data || (resp as any)?.data || [];
+      if (Array.isArray(list) && list.length > 0) {
+        const sortedAsc = list.sort((a: any, b: any) => (
+          new Date((a as any).dateEnvoi || (a as any).dateenvoi || 0).getTime() -
+          new Date((b as any).dateEnvoi || (b as any).dateenvoi || 0).getTime()
+        ));
+        // Préfixer les plus anciens chargés en tête
+        setMessages((prev) => uniqueById([...(sortedAsc as any), ...prev]));
+        setOffset((prev) => prev + list.length);
+        setHasMore(list.length === PAGE_SIZE);
+      } else {
+        setHasMore(false);
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Pas de cache à nettoyer
 
   useEffect(() => {
     loadMessages();
@@ -269,19 +243,37 @@ export default function PatientConversationScreen() {
     let s: any;
     (async () => {
       s = await createSocket();
-      joinConversation(s, String(id));
+      // Rejoindre/refixer la room à la connexion et reconnexions
+      const convId = String(id);
+      s.on('connect', () => joinConversation(s, convId));
+      s.on('reconnect', () => joinConversation(s, convId));
+      joinConversation(s, convId);
+      // Rejoindre aussi la room utilisateur pour recevoir les notifications directes
+      try {
+        const me = await apiService.getProfile();
+        const meId = (me as any)?.data?.idutilisateur || (me as any)?.data?.id;
+        if (meId) {
+          s.emit('join-room', `user:${meId}`);
+        }
+      } catch {}
       bindMessagingRealtime(s, {
         onNewMessage: (data) => {
           console.log('📨 Nouveau message reçu dans conversation patient:', data);
           
-          // Essayer différentes structures de données
-          let message = data;
-          let conversationId = String(id);
-          
-          if (data?.message) {
-            message = data.message;
-            conversationId = String(data.conversationId || data.conversation_id || id);
+          // Extraction robuste du message et de la conversation cible
+          const resolvePayload = (p: any) => {
+            if (p && p.data && typeof p.data === 'object' && p.data.conversation_id) return p.data; // { data: message }
+            if (p && typeof p === 'object' && p.conversation_id) return p; // message direct
+            if (p && p.message && typeof p.message === 'object' && p.message.conversation_id) return p.message; // { message: msg }
+            return null;
+          };
+
+          const message = resolvePayload(data);
+          if (!message) {
+            console.log('❌ Payload non reconnu, ignoré');
+            return;
           }
+          const conversationId = String((message as any).conversation_id || '');
           
           // Vérifier que c'est bien pour cette conversation
           if (conversationId !== String(id)) {
@@ -303,24 +295,43 @@ export default function PatientConversationScreen() {
             }
             idsSeenRef.current.add(mid);
             
-            // Supprimer les messages temporaires avec le même contenu
+            // Supprimer uniquement les messages temporaires envoyés par moi, qui dupliquent le contenu
             const withoutTmp = prev.filter(mm => {
               const isTmp = String((mm as any).idmessage).startsWith('tmp-');
-              const sameContent = mm.contenu === message.contenu;
-              return !(isTmp && sameContent);
+              const isMine = (mm as any).expediteur_id === 'me';
+              const sameContent = mm.contenu === (message as any).contenu;
+              return !(isTmp && isMine && sameContent);
             });
             
             console.log('✅ Ajout du nouveau message patient:', message);
-            const merged = [...withoutTmp, message];
-            // Mettre à jour le cache pour éviter la disparition après reload
-            saveMessagesToCache(merged).catch(() => {});
-            return merged;
+            // Oldest-first: pousser les nouveaux à la fin de la liste
+            return uniqueById([...withoutTmp, message]);
           });
           
-          // Scroll vers le bas après un court délai
-          setTimeout(() => {
-            listRef.current?.scrollToEnd({ animated: true });
-          }, 100);
+          // Scroll vers le bas à la réception UNIQUEMENT si on est déjà en bas
+          if (isAtBottom) {
+            requestAnimationFrame(() => setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 0));
+          }
+          // Jouer un son à la réception (si activé)
+          (async () => {
+            try {
+              let meId = myUserId;
+              if (!meId) {
+                try {
+                  const userDataRaw = await AsyncStorage.getItem('userData');
+                  const userData = userDataRaw ? JSON.parse(userDataRaw) : null;
+                  meId = userData?.idutilisateur || userData?.id;
+                } catch {}
+              }
+              const senderId = (message as any)?.expediteur_id || (message as any)?.expediteur?.idutilisateur;
+              const isMineMsg = (meId && String(senderId) === String(meId)) || senderId === 'me' || (message as any)?.est_mien === true;
+              if (isMineMsg) return; // ne pas jouer de son pour mes propres messages
+              const prefs = notificationService.getPreferences();
+              if (prefs?.soundenabled) {
+                await audioNotificationService.playNotificationSound();
+              }
+            } catch {}
+          })();
           // Marquer comme lu immédiatement si écran ouvert
           apiService.markConversationAsRead(String(id)).catch(() => {});
         },
@@ -368,39 +379,16 @@ export default function PatientConversationScreen() {
     
     try {
       setSending(true);
-      setMessages((prev) => [...prev, optimistic]);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+      // Afficher d'abord localement (oldest-first → à la fin)
+      setMessages((prev) => uniqueById([...prev, optimistic]));
+      requestAnimationFrame(() => setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 0));
       
       await apiService.sendMessage(String(id), content);
       console.log('✅ Message envoyé avec succès');
+
+      // Ne PAS s'auto-notifier à l'envoi côté mobile
       
-      // Envoyer une notification de message
-      try {
-        // Récupérer les informations de l'utilisateur pour le nom
-        const userInfo = await AsyncStorage.getItem('userInfo');
-        let userName = 'Vous';
-        
-        if (userInfo) {
-          const user = JSON.parse(userInfo);
-          userName = `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Vous';
-        }
-        
-        console.log('👤 Nom de l\'expéditeur pour notification:', userName);
-        
-        await notificationService.sendMessageNotification(
-          userName,
-          content,
-          String(id)
-        );
-      } catch (error) {
-        console.log('⚠️ Erreur envoi notification:', error);
-      }
-      
-      // Sauvegarder les messages en cache après envoi
-      setTimeout(async () => {
-        const currentMessages = await loadMessagesFromCache();
-        await saveMessagesToCache([...currentMessages, optimistic]);
-      }, 100);
+      // Plus de cache: l'affichage temps réel + sync API suffisent
     } catch (error) {
       console.error('❌ Erreur envoi message:', error);
       
@@ -750,16 +738,35 @@ export default function PatientConversationScreen() {
               ref={listRef}
               data={messages}
               renderItem={renderMessage}
-              keyExtractor={(item) => String(item.idmessage)}
+              keyExtractor={(item, index) => {
+                const anyItem: any = item as any;
+                const id = String(anyItem?.idmessage || '');
+                const ts = String(anyItem?.dateEnvoi || anyItem?.dateenvoi || '');
+                return id ? `${id}-${ts}` : `idx-${index}`;
+              }}
               style={styles.messagesListContainer}
               contentContainerStyle={styles.messagesListContent}
-              onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-              onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
+              onContentSizeChange={() => {
+                // Scroll tout en bas à l'initialisation ou si on est déjà en bas
+                if (!initialScrollDoneRef.current || isAtBottom) {
+                  requestAnimationFrame(() => setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 0));
+                  initialScrollDoneRef.current = true;
+                }
+              }}
               onScroll={(e) => {
                 const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-                const atBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 150;
-                setShowScrollBottom(!atBottom);
+                const atBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 24;
+                setIsAtBottom(atBottom);
+                // Load more when reaching top
+                if (contentOffset.y <= 16) {
+                  loadMore();
+                }
               }}
+              ListHeaderComponent={loadingMore ? (
+                <View style={{ paddingVertical: 8 }}>
+                  <ActivityIndicator size="small" color="#007AFF" />
+                </View>
+              ) : null}
               scrollEventThrottle={100}
             />
           )}

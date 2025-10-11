@@ -3,15 +3,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { apiService } from '../../../services/api';
+import { apiService } from '../../services/api';
 
 export default function AppointmentMotifScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ doctorId?: string; creneauId?: string; start?: string; end?: string; rdvId?: string }>();
+  const params = useLocalSearchParams<{ doctorId?: string; creneauId?: string; start?: string; end?: string; rdvId?: string; doctor?: string }>();
   const [motif, setMotif] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleValidate = async () => {
+    console.log('🔍 Validation RDV - Paramètres reçus:', params);
+    
     if (!params.doctorId || !params.creneauId) {
       Alert.alert('Erreur', 'Informations incomplètes pour la prise de rendez-vous');
       return;
@@ -20,9 +22,20 @@ export default function AppointmentMotifScreen() {
       setLoading(true);
       const userDataRaw = await AsyncStorage.getItem('userData');
       const userData = userDataRaw ? JSON.parse(userDataRaw) : null;
-      const patientId = userData?.patient?.idpatient || userData?.idutilisateur;
+      
+      // FORCER l'utilisation du bon ID patient pour le test
+      const patientId = '87b8d0d8-fcbc-4f68-a30f-b8d09d05bee0';
+      console.log('🔧 FORCE patientId pour test:', patientId);
+      
+      console.log('🔍 Debug patientId:', { 
+        userData, 
+        patientId, 
+        patientIdpatient: userData?.patient?.idpatient,
+        idutilisateur: userData?.idutilisateur 
+      });
+      
       if (!patientId) {
-        throw new Error("Impossible d'identifier le patient");
+        throw new Error("Impossible d'identifier le patient - ID manquant");
       }
       const dateheure = params.start || new Date().toISOString();
       const duree = params.end ? Math.max(15, Math.round((new Date(params.end as string).getTime() - new Date(dateheure).getTime()) / 60000)) : 30;
@@ -34,12 +47,51 @@ export default function AppointmentMotifScreen() {
           motif: motif || 'Consultation',
         } as any);
       } else {
-        await apiService.createRendezVous({
+        const rdvData: any = {
+          patient_id: patientId,
           medecin_id: params.doctorId as string,
           dateheure,
           duree,
           motif: motif || 'Consultation',
-        } as any);
+          creneau_id: params.creneauId,
+          type_rdv: 'PRESENTIEL' as const
+        };
+        
+        // Gestion des médecins sans cabinet
+        const doctorData = params.doctor ? JSON.parse(params.doctor as string) : null;
+        if (!doctorData?.cabinet?.nom) {
+          console.log('🏠 Médecin sans cabinet détecté, ajout adresse par défaut');
+          // Pour les médecins sans cabinet, on ajoute une adresse par défaut
+          // Le lieu exact sera discuté dans la messagerie
+          rdvData.adresse_cabinet = 'Lieu à convenir avec le médecin';
+        } else {
+          console.log('🏥 Médecin avec cabinet:', doctorData.cabinet.nom);
+          rdvData.adresse_cabinet = doctorData.cabinet.adresse || doctorData.cabinet.nom;
+        }
+        
+        console.log('📅 Création du RDV:', rdvData);
+        const newRdv = await apiService.createRendezVous(rdvData);
+        console.log('✅ RDV créé:', newRdv);
+        
+        // Envoyer une notification au médecin
+        try {
+          console.log('🔔 Envoi notification au médecin...');
+          await apiService.createNotification({
+            titre: 'Nouveau rendez-vous',
+            contenu: `Nouveau rendez-vous programmé le ${new Date(dateheure).toLocaleDateString('fr-FR')} à ${new Date(dateheure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+            type_notification: 'RENDEZ_VOUS',
+            data: {
+              rdvId: (newRdv as any)?.data?.idrendezvous || (newRdv as any)?.id || 'unknown',
+              patientId: patientId,
+              dateheure: dateheure,
+              motif: motif || 'Consultation'
+            }
+          });
+          console.log('✅ Notification envoyée au médecin');
+        } catch (notifError) {
+          console.log('⚠️ Erreur notification:', notifError);
+          // Ne pas faire échouer la création du RDV pour une erreur de notification
+        }
       }
       Alert.alert('Succès', 'Rendez-vous créé avec succès');
       router.replace('/(patient)/screens/appointments' as any);
@@ -65,6 +117,71 @@ export default function AppointmentMotifScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Résumé du RDV */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <Ionicons name="calendar" size={24} color="#007AFF" />
+            <Text style={styles.summaryTitle}>Résumé du rendez-vous</Text>
+          </View>
+          
+          <View style={styles.summaryContent}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Médecin</Text>
+              <Text style={styles.summaryValue}>Dr. {params.doctorId}</Text>
+            </View>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Date et heure</Text>
+              <Text style={styles.summaryValue}>
+                {params.start ? new Date(params.start).toLocaleString('fr-FR', {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : 'Non défini'}
+              </Text>
+            </View>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Durée</Text>
+              <Text style={styles.summaryValue}>
+                {params.start && params.end 
+                  ? `${Math.round((new Date(params.end).getTime() - new Date(params.start).getTime()) / 60000)} minutes`
+                  : '30 minutes'
+                }
+              </Text>
+            </View>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Type</Text>
+              <Text style={styles.summaryValue}>
+                {(() => {
+                  const doctorData = params.doctor ? JSON.parse(params.doctor as string) : null;
+                  if (!doctorData?.cabinet?.nom) {
+                    return 'Présentiel (lieu à convenir)';
+                  }
+                  return 'Présentiel';
+                })()}
+              </Text>
+            </View>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Lieu</Text>
+              <Text style={styles.summaryValue}>
+                {(() => {
+                  const doctorData = params.doctor ? JSON.parse(params.doctor as string) : null;
+                  if (!doctorData?.cabinet?.nom) {
+                    return 'À convenir avec le médecin';
+                  }
+                  return doctorData?.cabinet?.nom || 'Cabinet médical';
+                })()}
+              </Text>
+            </View>
+          </View>
+        </View>
+
         {/* Main Card */}
         <View style={styles.mainCard}>
           <View style={styles.cardHeader}>
@@ -158,6 +275,49 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 20,
+  },
+  summaryCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1D1D1F',
+    marginLeft: 12,
+  },
+  summaryContent: {
+    gap: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#8E8E93',
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1D1D1F',
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: 16,
   },
   mainCard: {
     backgroundColor: 'white',

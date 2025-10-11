@@ -15,7 +15,7 @@ export default function RootLayout() {
         await apiService.initializeSession();
         const token = await AsyncStorage.getItem('userToken');
         const inAuth = pathname?.startsWith('/(auth)');
-        const inApp = pathname?.startsWith('/(patient)') || pathname?.startsWith('/(medecin)');
+        const inApp = pathname?.startsWith('/(patient)');
 
         // 1) Si non connecté et on tente d'accéder à l'app → renvoyer vers login
         if (!token && inApp) {
@@ -39,8 +39,8 @@ export default function RootLayout() {
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(patient)" options={{ headerShown: false }} />
-      <Stack.Screen name="(medecin)" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="(modals)" options={{ headerShown: false }} />
     </Stack>
   );
 }

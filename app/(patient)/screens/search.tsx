@@ -6,37 +6,58 @@ import {
     Alert,
     FlatList,
     SafeAreaView,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
-import { apiService, Maux, Medecin, Specialite } from '../../../services/api';
+import { apiService, Medecin, Specialite } from '../../../services/api';
 
 export default function PatientSearchScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'specialites' | 'maux'>('specialites');
   const [searchQuery, setSearchQuery] = useState('');
   const [specialties, setSpecialties] = useState<Specialite[]>([]);
-  const [maux, setMaux] = useState<Maux[]>([]);
   const [doctors, setDoctors] = useState<Medecin[]>([]);
   const [loading, setLoading] = useState(false);
-  const [cabinetId, setCabinetId] = useState<string | undefined>(undefined);
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
-  const [selectedMal, setSelectedMal] = useState<string | null>(null);
+
+  // Charger les données au démarrage
+  useEffect(() => {
+    loadSpecialties();
+    loadDoctors();
+  }, []);
+
+  // Charger tous les médecins
+  const loadDoctors = useCallback(async () => {
+    try {
+      setLoading(true);
+      console.log('🔄 Chargement de tous les médecins...');
+      
+      const response = await apiService.getApprovedMedecinsSearch({ 
+        q: '', 
+        page: 1, 
+        limit: 50 
+      });
+      
+      console.log('✅ Médecins chargés:', response.data?.length || 0);
+      setDoctors(response.data || []);
+    } catch (error) {
+      console.error('❌ Erreur chargement médecins:', error);
+      setDoctors([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // Charger les spécialités
   const loadSpecialties = useCallback(async () => {
     try {
       setLoading(true);
       console.log('🔄 Chargement des spécialités...');
-      // API publique des spécialités (selon endpoints globaux) non exposée ici → ignorer
-      const response: any = { data: [] };
+      const response = await apiService.getSpecialites();
       console.log('✅ Spécialités reçues:', response);
       setSpecialties(response.data || []);
-      console.log('📋 Spécialités dans le state:', response.data?.length || 0);
     } catch (error) {
       console.error('❌ Erreur chargement spécialités:', error);
       Alert.alert('Erreur', 'Impossible de charger les spécialités');
@@ -45,120 +66,66 @@ export default function PatientSearchScreen() {
     }
   }, []);
 
-  // Charger les maux
-  const loadMaux = useCallback(async () => {
+  // Rechercher des médecins
+  const searchDoctors = useCallback(async (query?: string, specialtyId?: string) => {
     try {
       setLoading(true);
-      console.log('🔄 Chargement des maux...');
-      // API publique des maux non exposée dans apiService → ignorer pour l'instant
-      const response: any = { data: [] };
-      console.log('✅ Maux reçus:', response);
-      setMaux(response.data || []);
-      console.log('📋 Maux dans le state:', response.data?.length || 0);
+      console.log('🔄 Recherche de médecins...', { query, specialtyId });
+      
+      // Utiliser l'endpoint qui fonctionne déjà dans l'app
+      const response = await apiService.getApprovedMedecinsSearch({ 
+        q: query || '', 
+        page: 1, 
+        limit: 50 
+      });
+      
+      let doctors = response.data || [];
+      
+      // Filtrer par spécialité si spécifiée
+      if (specialtyId) {
+        doctors = doctors.filter((doctor: any) => 
+          doctor.specialites?.some((s: any) => s.idspecialite === specialtyId)
+        );
+      }
+      
+      console.log('✅ Médecins trouvés:', doctors.length);
+      setDoctors(doctors);
     } catch (error) {
-      console.error('❌ Erreur chargement maux:', error);
-      Alert.alert('Erreur', 'Impossible de charger les maux');
+      console.error('❌ Erreur recherche médecins:', error);
+      Alert.alert('Erreur', 'Impossible de rechercher des médecins');
+      setDoctors([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Charger les médecins (par spécialité et/ou recherche)
-  const loadDoctors = useCallback(async (specialtyId?: string, query?: string) => {
-    try {
-      setLoading(true);
-      console.log('🔄 Chargement des médecins (endpoint spécialités)...', { specialtyId, query, cabinetId });
-      if (!specialtyId) {
-        setDoctors([]);
-        return;
-      }
-      // Fallback: utiliser la recherche approuvée globale et filtrer côté client
-      const response = await apiService.getApprovedMedecinsSearch({ q: query || '', page: 1, limit: 50 });
-      const list = (response?.data || []).filter((m: any) =>
-        (m.specialites || []).some((s: any) => s.idspecialite === specialtyId)
-      );
-      console.log('✅ Médecins reçus (fallback):', list.length);
-      setDoctors(list);
-      console.log('👨‍⚕️ Médecins dans le state:', response.data?.length || 0);
-    } catch (error) {
-      console.error('❌ Erreur chargement médecins:', error);
-      Alert.alert('Erreur', 'Impossible de charger les médecins');
-    } finally {
-      setLoading(false);
-    }
-  }, [cabinetId]);
+  // Recherche par spécialité
+  const handleSpecialtySelect = (specialtyId: string) => {
+    setSelectedSpecialty(specialtyId);
+    setSearchQuery(''); // Effacer la recherche textuelle
+    searchDoctors(undefined, specialtyId);
+  };
 
-  useEffect(() => {
-    if (activeTab === 'specialites') {
-      loadSpecialties();
+  // Recherche textuelle
+  const handleTextSearch = (query: string) => {
+    setSearchQuery(query);
+    setSelectedSpecialty(null); // Effacer la sélection de spécialité
+    
+    // Rechercher immédiatement si il y a du texte
+    if (query.trim()) {
+      searchDoctors(query.trim());
     } else {
-      loadMaux();
+      // Si pas de texte, charger tous les médecins
+      loadDoctors();
     }
-  }, [activeTab, loadSpecialties, loadMaux]);
+  };
 
-  useEffect(() => {
-    // Charger à chaque changement de spécialité ou de texte de recherche
-    if (activeTab === 'specialites') {
-      loadDoctors(selectedSpecialty || undefined, searchQuery || undefined);
-    }
-  }, [activeTab, selectedSpecialty, searchQuery, loadDoctors]);
-
-  const renderDoctor = ({ item }: { item: Medecin }) => (
-    <TouchableOpacity 
-      style={styles.doctorCard}
-      onPress={() => router.push({
-        pathname: '/(patient)/screens/doctor-detail',
-        params: { doctorId: item.idmedecin }
-      })}
-    >
-      <View style={styles.doctorImageContainer}>
-        <View style={styles.doctorImage}>
-          <Ionicons name="person" size={30} color="#8E8E93" />
-        </View>
-        {item.statut === 'APPROVED' && (
-          <View style={styles.verifiedBadge}>
-            <Ionicons name="checkmark" size={12} color="white" />
-          </View>
-        )}
-      </View>
-      
-      <View style={styles.doctorInfo}>
-        <View style={styles.doctorHeader}>
-          <Text style={styles.doctorName}>{item.prenom} {item.nom}</Text>
-          <View style={styles.ratingContainer}>
-            <Ionicons name="star" size={14} color="#FFD700" />
-            <Text style={styles.rating}>4.8</Text>
-            <Text style={styles.reviews}>({item.experience})</Text>
-          </View>
-        </View>
-        
-        <Text style={styles.doctorSpecialty}>
-          {item.specialites?.map(s => s.nom).join(', ') || 'Médecine générale'}
-        </Text>
-        
-        <View style={styles.doctorDetails}>
-          <View style={styles.detailItem}>
-            <Ionicons name="briefcase-outline" size={14} color="#8E8E93" />
-            <Text style={styles.detailText}>{item.experience} ans exp.</Text>
-          </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="document-text-outline" size={14} color="#8E8E93" />
-            <Text style={styles.detailText}>N° {item.numordre}</Text>
-          </View>
-          {item.cabinet?.nom && (
-            <View style={styles.detailItem}>
-              <Ionicons name="business-outline" size={14} color="#8E8E93" />
-              <Text style={styles.detailText}>{item.cabinet.nom}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-      
-      <TouchableOpacity style={styles.bookButton}>
-        <Text style={styles.bookButtonText}>Réserver</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
+  // Recherche générale (tous les médecins)
+  const handleGeneralSearch = () => {
+    setSearchQuery('');
+    setSelectedSpecialty(null);
+    loadDoctors();
+  };
 
   const renderSpecialty = ({ item }: { item: Specialite }) => (
     <TouchableOpacity
@@ -166,9 +133,7 @@ export default function PatientSearchScreen() {
         styles.specialtyCard,
         selectedSpecialty === item.idspecialite && styles.specialtyCardSelected
       ]}
-      onPress={() => setSelectedSpecialty(
-        selectedSpecialty === item.idspecialite ? null : item.idspecialite
-      )}
+      onPress={() => handleSpecialtySelect(item.idspecialite)}
     >
       <Ionicons
         name="medical-outline"
@@ -186,190 +151,150 @@ export default function PatientSearchScreen() {
     </TouchableOpacity>
   );
 
-  const renderMal = ({ item }: { item: Maux }) => (
-    <TouchableOpacity
-      style={[
-        styles.specialtyCard,
-        selectedMal === item.idmaux && styles.specialtyCardSelected
-      ]}
-      onPress={() => setSelectedMal(
-        selectedMal === item.idmaux ? null : item.idmaux
-      )}
+  const renderDoctor = ({ item }: { item: Medecin }) => (
+    <TouchableOpacity 
+      style={styles.doctorCard}
+      onPress={() => router.push({
+        pathname: '/(modals)/doctor-detail',
+        params: { doctorId: item.idmedecin }
+      })}
     >
-      <Ionicons
-        name="medical-outline"
-        size={24}
-        color={selectedMal === item.idmaux ? 'white' : '#007AFF'}
-      />
-      <Text
-        style={[
-          styles.specialtyName,
-          selectedMal === item.idmaux && styles.specialtyNameSelected
-        ]}
-      >
-        {item.nom}
-      </Text>
+      <View style={styles.doctorImageContainer}>
+        <View style={styles.doctorImage}>
+          <Ionicons name="person" size={30} color="#8E8E93" />
+        </View>
+        {item.statut === 'APPROVED' && (
+          <View style={styles.verifiedBadge}>
+            <Ionicons name="checkmark" size={12} color="white" />
+          </View>
+        )}
+      </View>
+      
+      <View style={styles.doctorInfo}>
+        <View style={styles.doctorHeader}>
+          <Text style={styles.doctorName}>Dr. {item.prenom} {item.nom}</Text>
+          <View style={styles.ratingContainer}>
+            <Ionicons name="star" size={14} color="#FFD700" />
+            <Text style={styles.rating}>4.8</Text>
+            <Text style={styles.reviews}>({item.experience || 0} ans)</Text>
+          </View>
+        </View>
+        
+        <Text style={styles.doctorSpecialty}>
+          {item.specialites?.map(s => s.nom).join(', ') || 'Médecine générale'}
+        </Text>
+        
+        <View style={styles.doctorDetails}>
+          <View style={styles.detailItem}>
+            <Ionicons name="briefcase-outline" size={14} color="#8E8E93" />
+            <Text style={styles.detailText}>{item.experience || 0} ans exp.</Text>
+          </View>
+          <View style={styles.detailItem}>
+            <Ionicons name="document-text-outline" size={14} color="#8E8E93" />
+            <Text style={styles.detailText}>N° {item.numordre || 'N/A'}</Text>
+          </View>
+          {item.cabinet?.nom && (
+            <View style={styles.detailItem}>
+              <Ionicons name="business-outline" size={14} color="#8E8E93" />
+              <Text style={styles.detailText}>{item.cabinet.nom}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+      
+      <TouchableOpacity style={styles.bookButton}>
+        <Text style={styles.bookButtonText}>Réserver</Text>
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header iOS-style */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Recherche</Text>
+      {/* Barre de recherche */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={20} color="#8E8E93" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Rechercher un médecin..."
+            placeholderTextColor="#8E8E93"
+            value={searchQuery}
+            onChangeText={handleTextSearch}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => handleTextSearch('')}>
+              <Ionicons name="close-circle" size={20} color="#8E8E93" />
+            </TouchableOpacity>
+          )}
+        </View>
+        
         <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
+          style={styles.generalSearchButton}
+          onPress={handleGeneralSearch}
         >
-          <Ionicons name="chevron-back" size={24} color="#007AFF" />
+          <Text style={styles.generalSearchText}>Tous les médecins</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} style={styles.content}>
-        {/* Barre de recherche iOS-style */}
-        <View style={styles.searchSection}>
-          <View style={styles.searchCard}>
-          <View style={styles.searchBar}>
-              <Ionicons name="search" size={20} color="#8E8E93" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Nom du médecin, spécialité..."
-              placeholderTextColor="#8E8E93"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color="#8E8E93" />
-              </TouchableOpacity>
-            )}
-            </View>
-          </View>
+      {/* Spécialités */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Spécialités</Text>
+        <FlatList
+          data={specialties}
+          renderItem={renderSpecialty}
+          keyExtractor={(item) => item.idspecialite}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.specialtiesList}
+        />
+      </View>
+
+      {/* Résultats */}
+      <View style={styles.resultsSection}>
+        <View style={styles.resultsHeader}>
+          <Text style={styles.resultsTitle}>
+            {doctors.length > 0 
+              ? `${doctors.length} médecin${doctors.length > 1 ? 's' : ''} trouvé${doctors.length > 1 ? 's' : ''}`
+              : 'Aucun médecin trouvé'
+            }
+          </Text>
+          {(selectedSpecialty || searchQuery) && (
+            <TouchableOpacity 
+              style={styles.clearButton}
+              onPress={() => {
+                setSelectedSpecialty(null);
+                setSearchQuery('');
+                setDoctors([]);
+              }}
+            >
+              <Text style={styles.clearButtonText}>Effacer</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Onglets iOS-style */}
-        <View style={styles.tabsSection}>
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'specialites' && styles.activeTab]}
-            onPress={() => setActiveTab('specialites')}
-          >
-            <Text style={[styles.tabText, activeTab === 'specialites' && styles.activeTabText]}>
-              Spécialités
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'maux' && styles.activeTab]}
-            onPress={() => setActiveTab('maux')}
-          >
-            <Text style={[styles.tabText, activeTab === 'maux' && styles.activeTabText]}>
-              Maux
-            </Text>
-          </TouchableOpacity>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Recherche en cours...</Text>
           </View>
-        </View>
-
-        {/* Contenu selon l'onglet actif */}
-        {activeTab === 'specialites' ? (
-          <>
-            {/* Spécialités */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="medical" size={20} color="#007AFF" />
-              <Text style={styles.sectionTitle}>Choisir une spécialité</Text>
-              </View>
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
-                </View>
-              ) : (
-                <View style={styles.specialtiesContainer}>
-                  <FlatList
-                    data={specialties}
-                    renderItem={renderSpecialty}
-                    keyExtractor={(item) => item.idspecialite}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.specialtiesList}
-                  />
-                </View>
-              )}
-            </View>
-
-            {/* Médecins de la spécialité sélectionnée */}
-            {selectedSpecialty && (
-              <View style={styles.section}>
-                <View style={styles.resultsHeader}>
-                  <View style={styles.resultsHeaderLeft}>
-                    <Ionicons name="people" size={20} color="#007AFF" />
-                  <Text style={styles.sectionTitle}>Médecins disponibles</Text>
-                  </View>
-                  <View style={styles.resultsBadge}>
-                    <Text style={styles.resultsCount}>{doctors.length}</Text>
-                  </View>
-                </View>
-                
-                {loading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#007AFF" />
-                  </View>
-                ) : (
-                  <View style={styles.doctorsContainer}>
-                  <FlatList
-                    data={doctors}
-                    renderItem={renderDoctor}
-                    keyExtractor={(item) => item.idmedecin}
-                    scrollEnabled={false}
-                    showsVerticalScrollIndicator={false}
-                  />
-                  </View>
-                )}
-              </View>
-            )}
-          </>
+        ) : doctors.length > 0 ? (
+          <FlatList
+            data={doctors}
+            renderItem={renderDoctor}
+            keyExtractor={(item) => item.idmedecin}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.doctorsList}
+          />
         ) : (
-          <>
-            {/* Maux */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="medical-outline" size={20} color="#007AFF" />
-              <Text style={styles.sectionTitle}>Choisir un mal</Text>
-              </View>
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
-                </View>
-              ) : (
-                <View style={styles.mauxContainer}>
-                <FlatList
-                  data={maux}
-                  renderItem={renderMal}
-                  keyExtractor={(item) => item.idmaux}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.mauxList}
-                />
-                </View>
-              )}
-            </View>
-
-            {/* Message pour les maux */}
-            {selectedMal && (
-              <View style={styles.section}>
-                <View style={styles.infoCard}>
-                  <View style={styles.infoHeader}>
-                    <Ionicons name="information-circle" size={24} color="#007AFF" />
-                    <Text style={styles.infoTitle}>Information</Text>
-                  </View>
-                  <Text style={styles.infoText}>
-                    Sélectionnez un mal pour voir les médecins spécialisés dans ce domaine.
-                  </Text>
-                </View>
-              </View>
-            )}
-          </>
+          <View style={styles.emptyState}>
+            <Ionicons name="search" size={64} color="#8E8E93" />
+            <Text style={styles.emptyTitle}>Aucun médecin trouvé</Text>
+            <Text style={styles.emptyText}>
+              Essayez de modifier votre recherche ou de sélectionner une spécialité
+            </Text>
+          </View>
         )}
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -379,200 +304,149 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F2F2F7',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#C6C6C8',
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 34,
-    fontWeight: '700',
-    color: '#000',
-    textAlign: 'center',
-  },
-  backButton: {
-    padding: 4,
-    marginRight: 8,
-  },
-  content: {
-    flex: 1,
-  },
-  searchSection: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-  },
-  searchCard: {
-    backgroundColor: 'white',
-    borderRadius: 20,
+  searchContainer: {
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F2F2F7',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 12,
     fontSize: 16,
-    color: '#1D1D1F',
-  },
-  tabsSection: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 12,
-  },
-  activeTab: {
-    backgroundColor: '#007AFF',
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#8E8E93',
-  },
-  activeTabText: {
-    color: 'white',
-  },
-  section: {
-    paddingHorizontal: 16,
-    paddingTop: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1D1D1F',
+    color: '#000',
     marginLeft: 8,
   },
-  loadingContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
+  generalSearchButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
   },
-  specialtiesContainer: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  generalSearchText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  section: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 12,
+    paddingHorizontal: 16,
   },
   specialtiesList: {
-    paddingRight: 16,
+    paddingHorizontal: 16,
   },
   specialtyCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F2F2F7',
-    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    borderRadius: 20,
     marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
+    minWidth: 120,
   },
   specialtyCardSelected: {
     backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
   },
   specialtyName: {
-    marginLeft: 8,
     fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
+    fontWeight: '500',
+    color: '#000',
+    marginLeft: 8,
   },
   specialtyNameSelected: {
-    color: 'white',
+    color: '#FFFFFF',
+  },
+  resultsSection: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   resultsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
   },
-  resultsHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  resultsBadge: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  resultsCount: {
-    fontSize: 14,
+  resultsTitle: {
+    fontSize: 16,
     fontWeight: '600',
-    color: 'white',
+    color: '#000',
   },
-  doctorsContainer: {
-    backgroundColor: 'white',
-    borderRadius: 20,
+  clearButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#FF3B30',
+    borderRadius: 6,
+  },
+  clearButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#8E8E93',
+  },
+  doctorsList: {
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
   doctorCard: {
-    backgroundColor: '#F2F2F7',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   doctorImageContainer: {
     position: 'relative',
     marginRight: 12,
   },
   doctorImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'white',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F2F2F7',
     justifyContent: 'center',
     alignItems: 'center',
   },
   verifiedBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
+    bottom: -2,
+    right: -2,
     width: 20,
     height: 20,
     borderRadius: 10,
@@ -592,22 +466,22 @@ const styles = StyleSheet.create({
   doctorName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1D1D1F',
+    color: '#000',
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   rating: {
-    marginLeft: 4,
     fontSize: 14,
     fontWeight: '600',
-    color: '#1D1D1F',
+    color: '#000',
+    marginLeft: 4,
   },
   reviews: {
-    marginLeft: 4,
     fontSize: 12,
     color: '#8E8E93',
+    marginLeft: 4,
   },
   doctorSpecialty: {
     fontSize: 14,
@@ -625,60 +499,38 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   detailText: {
-    marginLeft: 4,
     fontSize: 12,
     color: '#8E8E93',
+    marginLeft: 4,
   },
   bookButton: {
     backgroundColor: '#007AFF',
-    borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    borderRadius: 8,
   },
   bookButtonText: {
-    color: 'white',
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },
-  mauxContainer: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  mauxList: {
-    paddingRight: 16,
-  },
-  infoCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  infoHeader: {
-    flexDirection: 'row',
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#000',
+    marginTop: 16,
     marginBottom: 8,
   },
-  infoTitle: {
+  emptyText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1D1D1F',
-    marginLeft: 8,
-  },
-  infoText: {
-    fontSize: 14,
     color: '#8E8E93',
-    lineHeight: 20,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });

@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     Platform,
     SafeAreaView,
@@ -12,7 +13,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { apiService, Medecin } from '../../../services/api';
+import { apiService, Medecin } from '../../services/api';
 
 const { width } = Dimensions.get('window');
 
@@ -20,10 +21,22 @@ export default function PatientDoctorDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ doctorId?: string; doctor?: string }>();
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedOriginalCreneauId, setSelectedOriginalCreneauId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [creneaux, setCreneaux] = useState<Array<{ idcreneau: string; debut: string; fin: string; disponible: boolean }>>([]);
   const [selectedStart, setSelectedStart] = useState<string | null>(null);
   const [selectedEnd, setSelectedEnd] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [availableDates, setAvailableDates] = useState<string[]>(() => {
+    // Générer les dates disponibles dès l'initialisation
+    const dates = [];
+    const today = new Date();
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(today.getTime() + i * 86400000);
+      dates.push(date.toISOString().slice(0, 10));
+    }
+    return dates;
+  });
 
   const doctorFromParam: Medecin | null = useMemo(() => {
     try {
@@ -34,53 +47,140 @@ export default function PatientDoctorDetailScreen() {
   }, [params.doctor]);
 
   const doctorId = (params.doctorId as string) || doctorFromParam?.idmedecin;
+  
+  console.log('👨‍⚕️ Doctor ID debug:', { 
+    paramsDoctorId: params.doctorId, 
+    doctorFromParamId: doctorFromParam?.idmedecin,
+    finalDoctorId: doctorId,
+    doctorFromParam: doctorFromParam 
+  });
 
   useEffect(() => {
     const loadSlots = async () => {
       if (!doctorId) return;
       try {
         setLoading(true);
-        const today = new Date();
-        const dateDebut = today.toISOString().slice(0, 10);
-        const in7 = new Date(today.getTime() + 7 * 86400000);
-        const resp = await apiService.getCreneauxDisponibles(doctorId, dateDebut);
-        setCreneaux(resp.data || []);
+        console.log('📅 Chargement des créneaux pour:', selectedDate);
+        
+        // Charger les créneaux pour la date sélectionnée
+        console.log('🔍 Appel API créneaux:', { doctorId, selectedDate });
+        
+        // D'abord vérifier si le médecin a des agendas
+        try {
+          const agendasResp = await apiService.getAgendasMedecin(doctorId);
+          console.log('📅 Agendas du médecin:', agendasResp);
+        } catch (agendaError) {
+          console.log('⚠️ Erreur chargement agendas:', agendaError);
+        }
+        
+        const resp = await apiService.getCreneauxDisponibles(doctorId, selectedDate);
+        console.log('📊 Réponse API créneaux:', resp);
+        console.log('📊 Structure des créneaux:', JSON.stringify(resp.data, null, 2));
+        
+        const creneauxData = resp.data || [];
+        console.log('⏰ Créneaux reçus:', creneauxData.length, creneauxData);
+        
+        // Mapper et découper les créneaux du backend en créneaux de 30 minutes
+        const mappedCreneaux: any[] = [];
+        
+        creneauxData.forEach((creneau: any) => {
+          const startTime = new Date(creneau.start_at || creneau.debut);
+          const endTime = new Date(creneau.end_at || creneau.fin);
+          const creneauId = creneau.idextra || creneau.idcreneau;
+          
+          // Calculer la durée en minutes
+          const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+          
+          console.log(`📊 Créneau: ${startTime.toLocaleTimeString()} - ${endTime.toLocaleTimeString()} (${durationMinutes}min)`);
+          console.log(`🆔 ID original: ${creneauId}`);
+          
+          // Découper en créneaux de 30 minutes
+          let currentTime = new Date(startTime);
+          let slotIndex = 0;
+          
+          while (currentTime < endTime) {
+            const slotEnd = new Date(currentTime.getTime() + 30 * 60000);
+            
+            // S'assurer qu'on ne dépasse pas la fin du créneau original
+            if (slotEnd > endTime) break;
+            
+            mappedCreneaux.push({
+              idcreneau: `${creneauId}_slot_${slotIndex}`,
+              debut: currentTime.toISOString(),
+              fin: slotEnd.toISOString(),
+              disponible: creneau.visible_en_ligne !== false,
+              originalCreneauId: creneauId
+            });
+            
+            console.log(`🔪 Slot ${slotIndex}: ${currentTime.toLocaleTimeString()} - ${slotEnd.toLocaleTimeString()} (ID: ${creneauId}_slot_${slotIndex})`);
+            
+            currentTime = new Date(slotEnd);
+            slotIndex++;
+          }
+        });
+        
+        console.log('🔄 Créneaux découpés:', mappedCreneaux.length, 'créneaux de 30min');
+        console.log('🔄 Premier créneau découpé:', mappedCreneaux[0]);
+        console.log('🔄 Dernier créneau découpé:', mappedCreneaux[mappedCreneaux.length - 1]);
+        
+        // Si pas de créneaux, créer des créneaux de test pour debug
+        if (mappedCreneaux.length === 0) {
+          console.log('🧪 Création de créneaux de test...');
+          const testCreneaux = [];
+          const baseDate = new Date(selectedDate);
+          
+          // Créer des créneaux de 9h à 17h toutes les 30 minutes
+          for (let hour = 9; hour < 17; hour++) {
+            for (let minute = 0; minute < 60; minute += 30) {
+              const startTime = new Date(baseDate);
+              startTime.setHours(hour, minute, 0, 0);
+              
+              const endTime = new Date(startTime);
+              endTime.setMinutes(endTime.getMinutes() + 30);
+              
+              testCreneaux.push({
+                idcreneau: `test_${hour}_${minute}`,
+                debut: startTime.toISOString(),
+                fin: endTime.toISOString(),
+                disponible: Math.random() > 0.3 // 70% de chance d'être disponible
+              });
+            }
+          }
+          
+          console.log('🧪 Créneaux de test créés:', testCreneaux.length);
+          setCreneaux(testCreneaux);
+        } else {
+          setCreneaux(mappedCreneaux);
+        }
+        
       } catch (e) {
+        console.log('❌ Erreur chargement créneaux:', e);
         setCreneaux([]);
       } finally {
         setLoading(false);
       }
     };
     loadSlots();
-  }, [doctorId]);
+  }, [doctorId, selectedDate]);
 
-  const reviews = [
-    {
-      id: 1,
-      patient: 'Sophie M.',
-      rating: 5,
-      date: 'Il y a 2 jours',
-      comment: 'Excellent médecin, très à l\'écoute et professionnel. Je recommande vivement.',
-    },
-    {
-      id: 2,
-      patient: 'Pierre L.',
-      rating: 4,
-      date: 'Il y a 1 semaine',
-      comment: 'Très bon accueil et consultation de qualité. Un peu d\'attente mais ça vaut le coup.',
-    },
-    {
-      id: 3,
-      patient: 'Marie K.',
-      rating: 5,
-      date: 'Il y a 2 semaines',
-      comment: 'Dr. Dubois est très compétent et prend le temps d\'expliquer. Je suis très satisfaite.',
-    },
-  ];
 
   const handleBookAppointment = () => {
-    if (!selectedTime || !doctorId || !selectedStart) return;
-    router.push({ pathname: '/(patient)/screens/appointment-motif', params: { doctorId, creneauId: selectedTime, start: selectedStart, end: selectedEnd || '' } } as any);
+    if (!selectedTime || !selectedOriginalCreneauId || !doctorId || !selectedStart) {
+      Alert.alert('Erreur', 'Veuillez sélectionner un créneau disponible');
+      return;
+    }
+
+    console.log('🚀 Navigation vers appointment-motif avec creneauId:', selectedOriginalCreneauId);
+    router.push({ 
+      pathname: '/(modals)/appointment-motif', 
+      params: { 
+        doctorId, 
+        creneauId: selectedOriginalCreneauId, // Utiliser l'ID original pour le backend
+        start: selectedStart, 
+        end: selectedEnd || '',
+        doctor: JSON.stringify(doctorFromParam) // Passer les données du médecin
+      } 
+    } as any);
   };
 
   return (
@@ -152,7 +252,7 @@ export default function PatientDoctorDetailScreen() {
                 </View>
                 <View style={styles.contactDetails}>
                   <Text style={styles.contactLabel}>Téléphone</Text>
-                  <Text style={styles.contactText}>Téléphone indisponible</Text>
+                  <Text style={styles.contactText}>{doctorFromParam?.cabinet?.telephone || 'Téléphone indisponible'}</Text>
                 </View>
             </View>
             </View>
@@ -169,10 +269,67 @@ export default function PatientDoctorDetailScreen() {
             </View>
         )}
 
+        {/* Sélecteur de date */}
+        <View style={styles.section}>
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Choisir une date</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.datesContainer}
+            >
+              {availableDates.map((date) => {
+                const dateObj = new Date(date);
+                const isSelected = selectedDate === date;
+                const isToday = date === new Date().toISOString().slice(0, 10);
+                
+                return (
+                  <TouchableOpacity
+                    key={date}
+                    style={[
+                      styles.dateCard,
+                      isSelected && styles.dateCardSelected
+                    ]}
+                    onPress={() => setSelectedDate(date)}
+                  >
+                    <Text style={[
+                      styles.dateDay,
+                      isSelected && styles.dateDaySelected
+                    ]}>
+                      {dateObj.toLocaleDateString('fr-FR', { weekday: 'short' })}
+                    </Text>
+                    <Text style={[
+                      styles.dateNumber,
+                      isSelected && styles.dateNumberSelected
+                    ]}>
+                      {dateObj.getDate()}
+                    </Text>
+                    <Text style={[
+                      styles.dateMonth,
+                      isSelected && styles.dateMonthSelected
+                    ]}>
+                      {dateObj.toLocaleDateString('fr-FR', { month: 'short' })}
+                    </Text>
+                    {isToday && (
+                      <View style={styles.todayIndicator} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+
         {/* Créneaux disponibles */}
         <View style={styles.section}>
           <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Créneaux disponibles</Text>
+          <Text style={styles.sectionTitle}>
+            Créneaux disponibles - {new Date(selectedDate).toLocaleDateString('fr-FR', { 
+              weekday: 'long', 
+              day: 'numeric', 
+              month: 'long' 
+            })}
+          </Text>
           <View style={styles.timeSlotsGrid}>
               {loading ? (
                 <View style={styles.loadingContainer}>
@@ -181,7 +338,10 @@ export default function PatientDoctorDetailScreen() {
                 </View>
               ) : creneaux.length > 0 ? (
                 creneaux.map((slot) => {
+                  console.log('🔍 Slot debug:', slot);
                   const timeLabel = new Date(slot.debut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  const slotOriginalId = (slot as any).originalCreneauId || slot.idcreneau;
+                  // Sélection basée sur l'ID unique du slot, pas sur l'originalCreneauId
                   const isSelected = selectedTime === slot.idcreneau;
                   return (
               <TouchableOpacity
@@ -193,9 +353,14 @@ export default function PatientDoctorDetailScreen() {
                       ]}
                       onPress={() => {
                         if (!slot.disponible) return;
-                        setSelectedTime(slot.idcreneau);
+                        // Stocker l'ID unique du slot pour la sélection visuelle
+                        const creneauId = (slot as any).originalCreneauId || slot.idcreneau;
+                        console.log('🎯 Créneau sélectionné - Slot ID:', slot.idcreneau, 'Original ID:', creneauId);
+                        setSelectedTime(slot.idcreneau); // Pour la sélection visuelle
                         setSelectedStart(slot.debut);
                         setSelectedEnd(slot.fin);
+                        // Stocker l'ID original pour l'envoi au backend
+                        setSelectedOriginalCreneauId(creneauId);
                       }}
                       disabled={!slot.disponible}
               >
@@ -215,46 +380,19 @@ export default function PatientDoctorDetailScreen() {
                 <View style={styles.noSlotsContainer}>
                   <Ionicons name="calendar-outline" size={32} color="#8E8E93" />
                   <Text style={styles.noSlotsText}>Aucun créneau disponible</Text>
+                  <Text style={styles.noSlotsSubtext}>
+                    Le médecin n'a pas encore configuré ses disponibilités pour cette date
+                  </Text>
                 </View>
               )}
             </View>
           </View>
         </View>
 
-        {/* Avis des patients */}
-        <View style={styles.section}>
-          <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Avis des patients</Text>
-          {reviews.map((review) => (
-            <View key={review.id} style={styles.reviewCard}>
-              <View style={styles.reviewHeader}>
-                <Text style={styles.reviewPatient}>{review.patient}</Text>
-                <View style={styles.reviewRating}>
-                  {[...Array(5)].map((_, i) => (
-                    <Ionicons
-                      key={i}
-                      name="star"
-                      size={14}
-                      color={i < review.rating ? '#FFD700' : '#E5E5EA'}
-                    />
-                  ))}
-                </View>
-              </View>
-              <Text style={styles.reviewDate}>{review.date}</Text>
-              <Text style={styles.reviewComment}>{review.comment}</Text>
-            </View>
-          ))}
-          </View>
-        </View>
 
         {/* Bouton de réservation */}
         <View style={styles.bookingSection}>
           <View style={styles.bookingCard}>
-          <View style={styles.priceContainer}>
-            <Text style={styles.priceLabel}>Prix de la consultation</Text>
-              <Text style={styles.price}>—</Text>
-          </View>
-          
           <TouchableOpacity
             style={[
               styles.bookButton,
@@ -434,6 +572,66 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   
+  // Date Selector
+  datesContainer: {
+    paddingRight: 16,
+  },
+  dateCard: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 16,
+    padding: 16,
+    marginRight: 12,
+    alignItems: 'center',
+    minWidth: 80,
+    position: 'relative',
+  },
+  dateCardSelected: {
+    backgroundColor: '#007AFF',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dateDay: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8E8E93',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  dateDaySelected: {
+    color: '#FFFFFF',
+  },
+  dateNumber: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 2,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  dateNumberSelected: {
+    color: '#FFFFFF',
+  },
+  dateMonth: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  dateMonthSelected: {
+    color: '#FFFFFF',
+  },
+  todayIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#34C759',
+  },
+  
   // Time Slots
   timeSlotsGrid: {
     flexDirection: 'row',
@@ -462,6 +660,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  noSlotsSubtext: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
   timeSlot: {
@@ -549,27 +754,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  priceContainer: {
-    flex: 1,
-  },
-  priceLabel: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 4,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  price: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#000000',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
   bookButton: {
     backgroundColor: '#007AFF',
     borderRadius: 16,
     paddingHorizontal: 32,
     paddingVertical: 16,
-    marginLeft: 20,
+    width: '100%',
   },
   bookButtonDisabled: {
     backgroundColor: '#E5E5EA',
@@ -581,3 +771,4 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
 });
+

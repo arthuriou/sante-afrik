@@ -38,21 +38,29 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       const conversations = response.data || [];
       
       const totalUnread = conversations.reduce((sum, conv) => {
-        return sum + (conv.nombre_messages_non_lus || 0);
+        const unread = conv.nombre_messages_non_lus || 0;
+        console.log(`📊 Conversation ${conv.idconversation}: ${unread} non lus`);
+        return sum + unread;
       }, 0);
       
-      console.log('📊 Total messages non lus:', totalUnread);
+      console.log('📊 Total messages non lus calculé:', totalUnread);
+      console.log('📊 Ancien compteur:', unreadMessagesCount);
+      console.log('📊 Nouveau compteur:', totalUnread);
+      
       setUnreadMessagesCount(totalUnread);
       
       // Sauvegarder en cache
       await AsyncStorage.setItem('unreadMessagesCount', totalUnread.toString());
+      console.log('✅ Compteur mis à jour et sauvegardé');
     } catch (error) {
       console.error('❌ Erreur mise à jour compteur:', error);
       // Charger depuis le cache en cas d'erreur
       try {
         const cached = await AsyncStorage.getItem('unreadMessagesCount');
         if (cached) {
-          setUnreadMessagesCount(parseInt(cached));
+          const cachedCount = parseInt(cached);
+          console.log('📊 Chargement depuis cache:', cachedCount);
+          setUnreadMessagesCount(cachedCount);
         }
       } catch {}
     }
@@ -100,6 +108,11 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   // Calculer le total des notifications non lues
   const totalUnreadCount = unreadMessagesCount + unreadNotificationsCount;
+  
+  // Debug: afficher le compteur à chaque changement
+  useEffect(() => {
+    console.log('🔢 Compteur messages non lus changé:', unreadMessagesCount);
+  }, [unreadMessagesCount]);
 
   // Charger les compteurs au démarrage
   useEffect(() => {

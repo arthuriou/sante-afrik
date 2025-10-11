@@ -21,12 +21,7 @@ export default function WelcomeScreen() {
         await apiService.initializeSession();
         const token = await AsyncStorage.getItem('userToken');
         if (token) {
-          const role = await AsyncStorage.getItem('userRole');
-          if (role === 'MEDECIN') {
-            router.replace('/(medecin)/screens/agenda');
-          } else {
-            router.replace('/(patient)/screens/home');
-          }
+          router.replace('/(patient)/screens/home');
         }
       } catch (error) {
         console.log('Bootstrap error:', error);
@@ -68,18 +63,7 @@ export default function WelcomeScreen() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.selectionButton}
-            onPress={() => router.push('/(auth)/medecin/login')}
-          >
-            <View style={styles.buttonIcon}>
-              <Ionicons name="medical-outline" size={48} color="#34C759" />
-            </View>
-            <Text style={styles.buttonTitle}>Médecin</Text>
-            <Text style={styles.buttonSubtitle}>
-              Gérer mon cabinet et mes patients
-            </Text>
-          </TouchableOpacity>
+
         </View>
 
         {/* Informations supplémentaires */}

@@ -479,10 +479,10 @@ class ApiService {
     });
   }
 
-  async changePassword(email: string, newPassword: string) {
+  async changePassword(ancienMotDePasse: string, nouveauMotDePasse: string) {
     return this.request('/api/auth/change-password', {
       method: 'POST',
-      body: { email, newPassword },
+      body: { ancienMotDePasse, nouveauMotDePasse },
     });
   }
 
@@ -490,6 +490,13 @@ class ApiService {
     return this.request('/api/auth/forgot-password', {
       method: 'POST',
       body: { email },
+    });
+  }
+
+  async resetPassword(token: string, nouveauMotDePasse: string) {
+    return this.request('/api/auth/reset-password', {
+      method: 'POST',
+      body: { token, nouveauMotDePasse },
     });
   }
 
@@ -685,6 +692,41 @@ class ApiService {
     return this.request(`/api/dossier-medical/documents/${id}`, { method: 'DELETE' });
   }
 
+  // ========================================
+  // SPÉCIALITÉS ET MAUX
+  // ========================================
+
+  async getSpecialites() {
+    return this.request<{ message: string; data: Specialite[] }>('/api/specialites/specialites');
+  }
+
+  async getMaux() {
+    return this.request<{ message: string; data: Maux[] }>('/api/specialites/maux');
+  }
+
+  async searchMedecinsBySpecialite(specialiteId: string) {
+    return this.request<{ message: string; data: Medecin[] }>(`/api/specialites/specialites/${specialiteId}/medecins`);
+  }
+
+  async searchMedecinsByMaux(mauxId: string) {
+    return this.request<{ message: string; data: Medecin[] }>(`/api/specialites/maux/${mauxId}/medecins`);
+  }
+
+  async searchMedecinsGlobal(params?: {
+    query?: string;
+    specialiteId?: string;
+    mauxId?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.query) query.append('query', params.query);
+    if (params?.specialiteId) query.append('specialiteId', params.specialiteId);
+    if (params?.mauxId) query.append('mauxId', params.mauxId);
+    
+    const queryString = query.toString();
+    const url = `/api/specialites/medecins/search${queryString ? `?${queryString}` : ''}`;
+    return this.request<{ message: string; data: Medecin[] }>(url);
+  }
+
   // === RENDEZ-VOUS ===
   
   async getRendezVousMedecin() {
@@ -701,6 +743,32 @@ class ApiService {
 
   async getRendezVousPatient() {
     return this.request<{ message: string; data: RendezVous[] }>('/api/rendezvous/patient/me');
+  }
+
+  // Consultations
+  async getConsultationsPatient() {
+    // Récupérer l'ID du patient depuis le profil
+    const profile = await this.getProfile();
+    const patientId = profile.data.patient?.idpatient;
+    
+    if (!patientId) {
+      throw new Error('Patient ID non trouvé');
+    }
+    
+    return this.request<{ message: string; data: any[] }>(`/api/consultations/patient/${patientId}`);
+  }
+
+  // Ordonnances
+  async getOrdonnancesPatient() {
+    // Récupérer l'ID du patient depuis le profil
+    const profile = await this.getProfile();
+    const patientId = profile.data.patient?.idpatient;
+    
+    if (!patientId) {
+      throw new Error('Patient ID non trouvé');
+    }
+    
+    return this.request<{ message: string; data: any[] }>(`/api/ordonnances/patient/${patientId}`);
   }
 
   async getRendezVousById(id: string) {
@@ -750,7 +818,14 @@ class ApiService {
   }
 
   async getCreneauxDisponibles(medecinId: string, date: string) {
-    return this.request<{ message: string; data: any[] }>(`/api/rendezvous/medecin/${medecinId}/creneaux-disponibles?date=${date}`);
+    // Convertir la date en plage de dates (jour entier)
+    const dateDebut = new Date(date);
+    dateDebut.setHours(0, 0, 0, 0);
+    
+    const dateFin = new Date(date);
+    dateFin.setHours(23, 59, 59, 999);
+    
+    return this.request<{ message: string; data: any[] }>(`/api/rendezvous/medecin/${medecinId}/creneaux-disponibles?dateDebut=${dateDebut.toISOString()}&dateFin=${dateFin.toISOString()}`);
   }
 
   async getAgendasMedecin(medecinId: string) {

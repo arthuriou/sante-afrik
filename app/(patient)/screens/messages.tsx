@@ -1,10 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { API_BASE_URL, apiService, Conversation } from '../../../services/api';
 import { useNotifications } from '../../../services/notificationContext';
 import { bindMessagingRealtime, createSocket, joinConversation } from '../../../services/socket';
+import { audioNotificationService } from '../../../services/audioNotificationService';
+import { notificationService } from '../../../services/notificationService';
 
 export default function MessagesScreen() {
   const router = useRouter();
@@ -65,6 +68,23 @@ export default function MessagesScreen() {
     };
     getMyId();
 
+    // Vérifier la configuration des notifications push
+    (async () => {
+      try {
+        const setup = await notificationService.checkPushNotificationSetup();
+        console.log('🔍 État notifications push:', setup);
+        if (!setup.permissions) {
+          console.log('⚠️ Permissions notifications manquantes');
+        }
+        if (!setup.token) {
+          console.log('⚠️ Token push manquant, réinitialisation...');
+          await notificationService.initialize();
+        }
+      } catch (error) {
+        console.error('❌ Erreur vérification notifications:', error);
+      }
+    })();
+
     // Configurer les événements en temps réel
     let socket: any;
     const setupRealtime = async () => {
@@ -78,25 +98,64 @@ export default function MessagesScreen() {
             // Le backend envoie { message: {...}, conversationId: "..." }
             const message = data?.message || data;
             const conversationId = data?.conversationId || data?.conversation_id || message?.conversation_id;
-            // Si la conversation est actuellement ouverte, ne pas incrémenter le non lu
+            
+            if (!conversationId) {
+              console.log('❌ Pas de conversationId, rechargement complet');
+              loadConversations(socket);
+              return;
+            }
+            
+            // Son immédiat en liste si on n'est pas dans la conversation ouverte
+            (async () => {
+              try {
+                const currentId = await AsyncStorage.getItem('currentConversationId');
+                if (!currentId || String(currentId) !== String(conversationId)) {
+                  const prefs = notificationService.getPreferences();
+                  if (prefs?.soundenabled) {
+                    await audioNotificationService.playNotificationSound();
+                  }
+                }
+              } catch {}
+            })();
+            
+            // Mise à jour immédiate de la liste
             AsyncStorage.getItem('currentConversationId').then((currentId) => {
               const isActive = currentId && conversationId && String(currentId) === String(conversationId);
               setConversations(prev => {
                 const exists = prev.some(conv => conv.idconversation === conversationId);
                 if (!exists && conversationId) {
+                  console.log('🔄 Conversation inexistante, rechargement complet');
                   loadConversations(socket);
                   return prev;
                 }
-                return prev.map(conv => 
+                
+                // Mettre à jour la conversation existante
+                const updated = prev.map(conv => 
                   conv.idconversation === conversationId
                     ? {
                         ...conv,
-                        dernier_message: message,
+                        dernier_message: {
+                          ...message,
+                          dateEnvoi: message.dateEnvoi || message.date_envoi || new Date().toISOString()
+                        },
                         nombre_messages_non_lus: isActive ? 0 : (conv.nombre_messages_non_lus || 0) + 1
                       }
                     : conv
                 );
+                
+                // Trier par date du dernier message (plus récent en premier)
+                const sorted = updated.sort((a, b) => {
+                  const dateA = a.dernier_message?.dateEnvoi || '';
+                  const dateB = b.dernier_message?.dateEnvoi || '';
+                  return dateB.localeCompare(dateA);
+                });
+                
+                console.log('✅ Liste mise à jour en temps réel pour conversation:', conversationId);
+                return sorted;
               });
+              // Rafraîchir le compteur global dans la tab bar
+              console.log('🔄 Mise à jour compteur global depuis liste messages');
+              updateUnreadCount();
             }).catch(() => {});
           },
           onConversationRead: (data) => {

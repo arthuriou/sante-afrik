@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -33,18 +33,60 @@ export default function PatientHomeScreen() {
     })();
   }, []);
 
-  useEffect(() => {
+  const loadNextAppointment = useCallback(async () => {
     if (!patientId) return;
-    (async () => {
-      try {
-        const list = await apiService.getRendezVousPatient();
-        const upcoming = (list?.data || list || [])
-          .filter((r: any) => new Date(r.dateheure) > new Date())
-          .sort((a: any, b: any) => new Date(a.dateheure).getTime() - new Date(b.dateheure).getTime())[0];
-        setNextAppointment(upcoming || null);
-      } catch {}
-    })();
+    try {
+      console.log('🔄 Chargement du prochain rendez-vous...');
+      const list = await apiService.getRendezVousPatient();
+      console.log('📅 Tous les RDV récupérés:', list?.data || list);
+      
+      const now = new Date();
+      console.log('🕐 Date actuelle:', now.toISOString());
+      
+      const allRendezVous = (list?.data || list || []);
+      console.log('📊 Nombre total de RDV:', allRendezVous.length);
+      
+      const upcoming = allRendezVous
+        .filter((r: any) => {
+          const rdvDate = new Date(r.dateheure);
+          const isFuture = rdvDate.getTime() > now.getTime();
+          const timeDiff = rdvDate.getTime() - now.getTime();
+          const hoursDiff = Math.round(timeDiff / (1000 * 60 * 60));
+          
+          // Vérifier le statut - exclure les RDV terminés
+          const isActive = r.statut === 'CONFIRME' || r.statut === 'EN_ATTENTE';
+          
+          console.log(`📅 RDV ${r.idrendezvous}: ${r.dateheure}`);
+          console.log(`   └─ Date RDV: ${rdvDate.toISOString()}`);
+          console.log(`   └─ Statut: ${r.statut} (Actif: ${isActive})`);
+          console.log(`   └─ Futur: ${isFuture} (${hoursDiff}h de différence)`);
+          
+          return isFuture && isActive;
+        })
+        .sort((a: any, b: any) => new Date(a.dateheure).getTime() - new Date(b.dateheure).getTime());
+      
+      console.log('📋 RDV futurs et actifs trouvés:', upcoming.length);
+      const nextRdv = upcoming[0] || null;
+      
+      setNextAppointment(nextRdv);
+      console.log('✅ Prochain RDV chargé:', nextRdv ? `${nextRdv.medecin?.prenom} ${nextRdv.medecin?.nom} - ${nextRdv.dateheure} (${nextRdv.statut})` : 'Aucun RDV futur et actif');
+    } catch (error) {
+      console.error('❌ Erreur chargement prochain RDV:', error);
+    }
   }, [patientId]);
+
+  // Charger au montage du composant
+  useEffect(() => {
+    loadNextAppointment();
+  }, [loadNextAppointment]);
+
+  // Recharger automatiquement quand on revient sur l'écran
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 Focus sur l\'écran d\'accueil - rechargement automatique');
+      loadNextAppointment();
+    }, [loadNextAppointment])
+  );
 
   const nextAppointmentDate = useMemo(() => {
     if (!nextAppointment) return '';
@@ -61,49 +103,76 @@ export default function PatientHomeScreen() {
     
     try {
       setLoading(true);
+      console.log('🔍 Recherche intelligente:', text.trim());
       
-      // Recherche simple : chercher des médecins directement
+      // Recherche intelligente : chercher des médecins avec filtres avancés
       const medecinsResp = await apiService.getApprovedMedecinsSearch({ 
         q: text.trim(), 
         page: 1, 
-        limit: 20 
+        limit: 30 
       });
       
       const allResults: any[] = [];
       
-      // Ajouter les médecins trouvés
+      // Ajouter les médecins trouvés avec scoring intelligent
       if (medecinsResp?.data) {
         medecinsResp.data.forEach((medecin: any) => {
-          allResults.push({ ...medecin, _type: 'medecin' });
+          let score = 0;
+          let context = '';
+          
+          // Score par nom/prénom (match exact = score élevé)
+          const fullName = `${medecin.prenom} ${medecin.nom}`.toLowerCase();
+          const searchLower = text.trim().toLowerCase();
+          
+          if (fullName.includes(searchLower)) {
+            score += 100;
+            context = 'Nom du médecin';
+          }
+          
+          // Score par spécialités
+          if (medecin.specialites && medecin.specialites.length > 0) {
+            const specialiteMatch = medecin.specialites.some((spec: any) => 
+              spec.nom.toLowerCase().includes(searchLower)
+            );
+            if (specialiteMatch) {
+              score += 80;
+              context = 'Spécialité';
+            }
+          }
+          
+          // Score par cabinet
+          if (medecin.cabinet?.nom && medecin.cabinet.nom.toLowerCase().includes(searchLower)) {
+            score += 60;
+            context = 'Cabinet';
+          }
+          
+          // Score par expérience (si recherche contient "exp" ou "ans")
+          if (searchLower.includes('exp') || searchLower.includes('ans')) {
+            score += 40;
+            context = 'Expérience';
+          }
+          
+          allResults.push({ 
+            ...medecin, 
+            _type: 'medecin',
+            _score: score,
+            _context: context
+          });
         });
       }
       
-      // Si pas assez de résultats, chercher par spécialités
-      if (allResults.length < 10) {
-        try {
-          const specialitesResp = await apiService.getApprovedMedecinsSearch({ q: text.trim(), page: 1, limit: 1 });
-          
-          // simplification: on garde la recherche médecins
-        } catch (e) {
-          console.log('Erreur recherche spécialités:', e);
-        }
-      }
+      // Trier par score décroissant
+      allResults.sort((a, b) => b._score - a._score);
       
-      // Si toujours pas assez, chercher par maux
-      // on retire les recherches avancées (spécialités/maux) non supportées par l'API
-      
-      setResults(allResults.slice(0, 20));
+      console.log('📊 Résultats triés:', allResults.length);
+      setResults(allResults.slice(0, 15)); // Limiter à 15 résultats les plus pertinents
     } catch (e) {
-      console.log('Erreur recherche générale:', e);
+      console.log('❌ Erreur recherche:', e);
       setResults([]);
     } finally {
       setLoading(false);
     }
   }, []);
-
-  const quickActions = [
-    { id: 1, title: 'Prendre RDV', subtitle: 'Réserver en ligne', icon: 'calendar-outline', color: '#007AFF' },
-  ];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -192,7 +261,7 @@ export default function PatientHomeScreen() {
                         style={styles.searchResultItem}
                         onPress={() => {
                           router.push({ 
-                            pathname: '/(patient)/screens/doctor-detail', 
+                            pathname: '/(modals)/doctor-detail', 
                             params: { 
                               doctorId: medecin.idmedecin, 
                               doctor: JSON.stringify(medecin) 
@@ -205,19 +274,31 @@ export default function PatientHomeScreen() {
               </View>
                         <View style={styles.searchResultContent}>
                           <Text style={styles.searchResultName}>
-                            {medecin.prenom} {medecin.nom}
+                            Dr. {medecin.prenom} {medecin.nom}
                           </Text>
                           <Text style={styles.searchResultSubtitle}>
-                            {medecin.specialites?.map((s: any) => s.nom).join(', ')}
+                            {medecin.specialites?.map((s: any) => s.nom).join(', ') || 'Médecine générale'}
                           </Text>
-                          {medecin._context && (
-                            <Text style={styles.searchResultContext}>
-                              {medecin._context}
+                          {medecin.cabinet?.nom && (
+                            <Text style={styles.searchResultCabinet}>
+                              📍 {medecin.cabinet.nom}
                             </Text>
                           )}
-                          <Text style={styles.searchResultType}>
-                            Médecin
-                          </Text>
+                          {medecin._context && (
+                            <Text style={styles.searchResultContext}>
+                              ✓ {medecin._context}
+                            </Text>
+                          )}
+                          <View style={styles.searchResultFooter}>
+                            <Text style={styles.searchResultType}>
+                              Médecin
+                            </Text>
+                            {medecin.experience && (
+                              <Text style={styles.searchResultExperience}>
+                                {medecin.experience} ans exp.
+                              </Text>
+                            )}
+                          </View>
               </View>
                         <Ionicons name="chevron-forward-outline" size={16} color="#8E8E93" />
             </TouchableOpacity>
@@ -226,42 +307,6 @@ export default function PatientHomeScreen() {
                 )}
               </View>
             )}
-          </View>
-        </View>
-
-        {/* Actions rapides */}
-        <View style={styles.quickActionsSection}>
-          <Text style={styles.sectionTitle}>Actions rapides</Text>
-          <View style={styles.quickActionsGrid}>
-            {quickActions.map((action) => (
-              <TouchableOpacity 
-                key={action.id} 
-                style={styles.quickActionCard}
-                onPress={() => {
-                  if (action.id === 1) router.push('/(patient)/screens/search');
-                  if (action.id === 2) {
-                    // Appeler le 15 pour les urgences
-                    Alert.alert(
-                      'Urgences médicales',
-                      'Composez le 15 pour les urgences médicales',
-                      [
-                        { text: 'Annuler', style: 'cancel' },
-                        { text: 'Appeler le 15', style: 'destructive', onPress: () => {
-                          // TODO: Implémenter l'appel téléphonique
-                          console.log('Appel du 15...');
-                        }}
-                      ]
-                    );
-                  }
-                }}
-              >
-                <View style={[styles.quickActionIcon, { backgroundColor: action.color + '15' }]}>
-                  <Ionicons name={action.icon as any} size={24} color={action.color} />
-                </View>
-                <Text style={styles.quickActionTitle}>{action.title}</Text>
-                <Text style={styles.quickActionSubtitle}>{action.subtitle}</Text>
-              </TouchableOpacity>
-            ))}
           </View>
         </View>
       </ScrollView>
@@ -473,13 +518,23 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
-  searchResultContext: {
+  searchResultCabinet: {
     fontSize: 12,
-    color: '#FF9500',
-    fontWeight: '500',
-    fontStyle: 'italic',
+    color: '#8E8E93',
     marginBottom: 2,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  searchResultContext: {
+    fontSize: 12,
+    color: '#34C759',
+    fontWeight: '500',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  searchResultFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   searchResultType: {
     fontSize: 12,
@@ -487,52 +542,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },
-  
-  // Quick Actions Section
-  quickActionsSection: {
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 20,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  quickActionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    width: '48%',
-    marginBottom: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  quickActionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  quickActionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',
-    marginBottom: 4,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  quickActionSubtitle: {
-    fontSize: 13,
+  searchResultExperience: {
+    fontSize: 12,
     color: '#8E8E93',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
   },

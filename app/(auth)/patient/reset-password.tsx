@@ -16,39 +16,56 @@ import { apiService } from '../../../services/api';
 
 export default function ResetPasswordScreen() {
   const [email, setEmail] = useState('');
+  const [token, setToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleResetPassword = async () => {
+  const handleSendResetEmail = async () => {
     if (!email.trim()) {
       Alert.alert('Erreur', 'Veuillez saisir votre adresse email');
       return;
     }
-
     if (!/\S+@\S+\.\S+/.test(email)) {
       Alert.alert('Erreur', 'Veuillez saisir une adresse email valide');
       return;
     }
-
     setIsLoading(true);
-    
     try {
-      await apiService.sendOtp(email.trim());
-
-      Alert.alert(
-        'Email envoyé',
-        'Un code de vérification a été envoyé à votre adresse email. Veuillez vérifier votre boîte de réception.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.push({
-              pathname: '/(auth)/patient/verify-otp',
-              params: { email: email.trim() }
-            }),
-          },
-        ]
+      await apiService.forgotPassword(email.trim());
+      Alert.alert('Email envoyé',
+        'Un lien/code de réinitialisation a été envoyé à votre adresse email. Saisissez le token reçu ci-dessous.',
       );
     } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Erreur de connexion. Veuillez réessayer.');
+      Alert.alert('Erreur', error.message || 'Erreur lors de la demande de réinitialisation');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDoReset = async () => {
+    if (!token.trim()) {
+      Alert.alert('Erreur', 'Veuillez saisir le token');
+      return;
+    }
+    if (!newPassword.trim() || !confirmPassword.trim()) {
+      Alert.alert('Erreur', 'Veuillez saisir et confirmer le nouveau mot de passe');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Erreur', 'Les mots de passe ne correspondent pas');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await apiService.resetPassword(token.trim(), newPassword);
+      Alert.alert('Succès', 'Votre mot de passe a été réinitialisé', [
+        { text: 'OK', onPress: () => router.push('/(auth)/patient/login') }
+      ]);
+    } catch (error: any) {
+      Alert.alert('Erreur', error.message || 'Échec de réinitialisation');
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +93,7 @@ export default function ResetPasswordScreen() {
 
           <Text style={styles.title}>Réinitialiser le mot de passe</Text>
           <Text style={styles.subtitle}>
-            Entrez votre adresse email pour recevoir un code de vérification
+            1) Entrez votre email pour recevoir un token. 2) Saisissez le token et votre nouveau mot de passe.
           </Text>
 
           <View style={styles.form}>
@@ -96,11 +113,73 @@ export default function ResetPasswordScreen() {
 
             <TouchableOpacity
               style={[styles.resetButton, isLoading && styles.resetButtonDisabled]}
-              onPress={handleResetPassword}
+              onPress={handleSendResetEmail}
               disabled={isLoading}
             >
               <Text style={styles.resetButtonText}>
-                {isLoading ? 'Envoi en cours...' : 'Envoyer le code'}
+                {isLoading ? 'Envoi en cours...' : 'Envoyer le token'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Token + nouveau mot de passe */}
+            <View style={styles.inputContainer}>
+              <Ionicons name="key" size={20} color="#718096" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Token reçu par email"
+                value={token}
+                onChangeText={setToken}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Nouveau mot de passe"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry={!showPassword}
+                placeholderTextColor="#999"
+                editable={!isLoading}
+              />
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Confirmer le mot de passe"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showConfirmPassword}
+                placeholderTextColor="#999"
+                editable={!isLoading}
+              />
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.resetButton, isLoading && styles.resetButtonDisabled]}
+              onPress={handleDoReset}
+              disabled={isLoading}
+            >
+              <Text style={styles.resetButtonText}>
+                {isLoading ? 'Réinitialisation...' : 'Réinitialiser'}
               </Text>
             </TouchableOpacity>
 

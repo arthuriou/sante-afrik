@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as WebBrowser from 'expo-web-browser';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -20,6 +21,7 @@ import { API_BASE_URL, apiService, DocumentMedical, DossierMedical } from '../..
 import { openDocument } from '../../../utils/documentViewer';
 
 export default function SanteScreen() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [dossier, setDossier] = useState<DossierMedical | null>(null);
   const [documents, setDocuments] = useState<DocumentMedical[]>([]);
@@ -158,7 +160,7 @@ export default function SanteScreen() {
         throw new Error('Token d\'authentification manquant');
       }
       
-      await openDocument(doc.iddocument, token);
+      await openDocument(doc.iddocument, token, doc.type, doc.nom);
       
     } catch (error) {
       console.error('Erreur ouverture document:', error);
@@ -264,6 +266,37 @@ export default function SanteScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Ma santé</Text>
           <Text style={styles.headerSubtitle}>Gérez votre dossier médical et vos documents</Text>
+        </View>
+
+        {/* Cartes d'accès rapide */}
+        <View style={styles.quickAccessSection}>
+          <TouchableOpacity 
+            style={styles.quickAccessCard}
+            onPress={() => router.push('/(modals)/consultations')}
+          >
+            <View style={styles.quickAccessIcon}>
+              <Ionicons name="medical" size={24} color="#007AFF" />
+            </View>
+            <View style={styles.quickAccessContent}>
+              <Text style={styles.quickAccessTitle}>Mes Consultations</Text>
+              <Text style={styles.quickAccessSubtitle}>Historique de mes consultations médicales</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.quickAccessCard}
+            onPress={() => router.push('/(modals)/ordonnances')}
+          >
+            <View style={styles.quickAccessIcon}>
+              <Ionicons name="receipt" size={24} color="#34C759" />
+            </View>
+            <View style={styles.quickAccessContent}>
+              <Text style={styles.quickAccessTitle}>Mes Ordonnances</Text>
+              <Text style={styles.quickAccessSubtitle}>Ordonnances reçues de mes médecins</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
+          </TouchableOpacity>
         </View>
 
         {/* Dossier Info Card */}
@@ -445,6 +478,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#8E8E93',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  
+  // Cartes d'accès rapide
+  quickAccessSection: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
+  },
+  quickAccessCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  quickAccessIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F2F2F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  quickAccessContent: {
+    flex: 1,
+  },
+  quickAccessTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 4,
+  },
+  quickAccessSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
   },
   
   // Sections

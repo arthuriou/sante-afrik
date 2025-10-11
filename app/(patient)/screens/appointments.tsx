@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -20,23 +20,36 @@ export default function PatientAppointmentsScreen() {
   const [loading, setLoading] = useState(false);
   const [allAppointments, setAllAppointments] = useState<RendezVous[]>([]);
 
-  const loadAppointments = async () => {
+  const loadAppointments = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('🔄 Chargement des rendez-vous patient...');
       const userDataRaw = await AsyncStorage.getItem('userData');
       const userData = userDataRaw ? JSON.parse(userDataRaw) : null;
       const patientId = userData?.patient?.idpatient || userData?.idutilisateur;
       if (!patientId) return;
       const resp = await apiService.getRendezVousPatient();
       setAllAppointments(resp.data || []);
+      console.log('✅ Rendez-vous chargés:', (resp.data || []).length);
+    } catch (error) {
+      console.error('❌ Erreur chargement RDV:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Charger au montage du composant
   useEffect(() => {
     loadAppointments();
-  }, []);
+  }, [loadAppointments]);
+
+  // Recharger automatiquement quand on revient sur l'écran
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 Focus sur l\'écran RDV patient - rechargement automatique');
+      loadAppointments();
+    }, [loadAppointments])
+  );
 
   const upcomingAppointments = allAppointments.filter(a => a.statut !== 'TERMINE' && a.statut !== 'ANNULE');
   const pastAppointments = allAppointments.filter(a => a.statut === 'TERMINE' || a.statut === 'ANNULE');

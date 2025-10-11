@@ -85,7 +85,7 @@ class NotificationService {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Notifications',
         importance: Notifications.AndroidImportance.MAX,
-        sound: 'comcell_message_1_ls', // nom du fichier sans extension
+        sound: 'notifSound1', // nom du fichier sans extension
         vibrationPattern: [0, 250, 250, 250],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: false,
@@ -96,7 +96,7 @@ class NotificationService {
       await Notifications.setNotificationChannelAsync('messages', {
         name: 'Messages',
         importance: Notifications.AndroidImportance.MAX,
-        sound: 'comcell_message_1_ls' ,
+        sound: 'notifSound1',
         vibrationPattern: [0, 200, 100, 200],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: false,
@@ -107,6 +107,53 @@ class NotificationService {
       console.log('📣 Canaux Android configurés');
     } catch (error) {
       console.log('⚠️ Impossible de configurer les canaux Android:', error);
+    }
+  }
+
+  // Vérifier si les notifications push sont configurées
+  async checkPushNotificationSetup() {
+    try {
+      console.log('🔍 Vérification configuration notifications push...');
+      
+      // Vérifier les permissions
+      const { status } = await Notifications.getPermissionsAsync();
+      console.log('📋 Statut permissions:', status);
+      
+      // Vérifier le projectId
+      const projectId = (Constants as any)?.expoConfig?.extra?.eas?.projectId;
+      console.log('🆔 ProjectId EAS:', projectId ? 'présent' : 'manquant');
+      
+      // Vérifier le token
+      if (this.expoPushToken) {
+        console.log('🎫 Token Expo Push:', this.expoPushToken.substring(0, 20) + '...');
+      } else {
+        console.log('❌ Token Expo Push manquant');
+      }
+      
+      // Vérifier les préférences
+      const prefs = this.getPreferences();
+      console.log('⚙️ Préférences:', prefs ? 'chargées' : 'manquantes');
+      if (prefs) {
+        console.log('  - Push activé:', prefs.pushenabled);
+        console.log('  - Son activé:', prefs.soundenabled);
+      }
+      
+      return {
+        permissions: status === 'granted',
+        projectId: !!projectId,
+        token: !!this.expoPushToken,
+        preferences: !!prefs,
+        pushEnabled: prefs?.pushenabled || false
+      };
+    } catch (error) {
+      console.error('❌ Erreur vérification setup:', error);
+      return {
+        permissions: false,
+        projectId: false,
+        token: false,
+        preferences: false,
+        pushEnabled: false
+      };
     }
   }
 
@@ -481,7 +528,7 @@ class NotificationService {
               conversationId,
               screen: 'messages'
             },
-            sound: preferences.soundenabled ? (preferences.soundfile?.replace('/sounds/', '').replace('.mp3', '') || 'message') : false,
+            sound: preferences.soundenabled ? 'notifSound1' : false,
           },
           trigger: null, // Immédiat
         };

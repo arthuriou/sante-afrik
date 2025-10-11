@@ -1,19 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Image,
-    Modal,
-    Platform,
-    Pressable,
     SafeAreaView,
     ScrollView,
     StyleSheet,
-    Switch,
     Text,
     TouchableOpacity,
     View
@@ -22,21 +17,16 @@ import { API_BASE_URL, apiService, User } from '../../../services/api';
 
 export default function PatientProfileScreen() {
   const router = useRouter();
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [locationEnabled, setLocationEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
-  const [viewerVisible, setViewerVisible] = useState(false);
 
-  type MenuAction = 'navigate' | 'toggle' | 'logout';
+  type MenuAction = 'navigate' | 'logout';
   interface MenuItem {
     id: string;
     title: string;
     icon: any;
     action: MenuAction;
     color?: string;
-    value?: boolean;
-    onToggle?: (next: boolean) => void;
     subtitle?: string;
   }
 
@@ -63,40 +53,6 @@ export default function PatientProfileScreen() {
     }
   };
 
-  const handlePickAndUploadPhoto = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission requise', "Autorisez l'accès à la galerie pour changer la photo.");
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (result.canceled) return;
-
-      const asset = result.assets[0];
-      const uri = asset.uri as string;
-      const nameGuess = (uri.split('/').pop() || `photo_${Date.now()}.jpg`).replace(/\?.*$/, '');
-      const typeGuess = (asset as any).mimeType || 'image/jpeg';
-
-      const resp = await apiService.updateProfilePhotoFromAsset({ uri, name: nameGuess, type: typeGuess });
-      if (resp?.data?.user) {
-        setUser(resp.data.user);
-      } else {
-        await loadProfile();
-      }
-      Alert.alert('Succès', 'Photo de profil mise à jour');
-    } catch (e: any) {
-      console.error('❌ Erreur upload:', e);
-      Alert.alert('Erreur', e?.message || 'Échec de la mise à jour de la photo');
-    }
-  };
 
   const menuSections: { title: string; items: MenuItem[] }[] = [
     {
@@ -106,18 +62,6 @@ export default function PatientProfileScreen() {
           id: 'edit-profile',
           title: 'Modifier mon profil',
           icon: 'person-outline',
-          action: 'navigate',
-        },
-        {
-          id: 'medical-info',
-          title: 'Informations médicales',
-          icon: 'medical-outline',
-          action: 'navigate',
-        },
-        {
-          id: 'emergency-contacts',
-          title: 'Contacts d\'urgence',
-          icon: 'call-outline',
           action: 'navigate',
         },
       ],
@@ -131,21 +75,6 @@ export default function PatientProfileScreen() {
           icon: 'notifications-outline',
           action: 'navigate',
           subtitle: 'Sons, vibrations, types',
-        },
-        {
-          id: 'location',
-          title: 'Localisation',
-          icon: 'location-outline',
-          action: 'toggle',
-          value: locationEnabled,
-          onToggle: setLocationEnabled,
-        },
-        {
-          id: 'language',
-          title: 'Langue',
-          icon: 'language-outline',
-          action: 'navigate',
-          subtitle: 'Français',
         },
       ],
     },
@@ -202,16 +131,15 @@ export default function PatientProfileScreen() {
     switch (item.action) {
       case 'navigate':
         if (item.id === 'edit-profile') {
-          router.navigate('/(patient)/modals/edit-profile');
+          router.push('/(modals)/edit-profile');
+        } else if (item.id === 'consultations') {
+          router.push('/(modals)/consultations');
+        } else if (item.id === 'ordonnances') {
+          router.push('/(modals)/ordonnances');
         } else if (item.id === 'notification-settings') {
           router.navigate('/(patient)/screens/notification-settings');
         } else {
           Alert.alert('Navigation', `Navigation vers ${item.title}`);
-        }
-        break;
-      case 'toggle':
-        if (item.onToggle) {
-          item.onToggle(!Boolean(item.value));
         }
         break;
       case 'logout':
@@ -259,16 +187,7 @@ export default function PatientProfileScreen() {
         </View>
       </View>
       
-      {item.action === 'toggle' ? (
-        <Switch
-          value={item.value}
-          onValueChange={item.onToggle}
-          trackColor={{ false: '#E5E5EA', true: '#007AFF' }}
-          thumbColor={item.value ? 'white' : '#8E8E93'}
-        />
-      ) : (
-        <Ionicons name="chevron-forward" size={16} color="#8E8E93" />
-      )}
+      <Ionicons name="chevron-forward" size={16} color="#8E8E93" />
     </TouchableOpacity>
   );
 
@@ -292,7 +211,6 @@ export default function PatientProfileScreen() {
         {/* Header du profil */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <Pressable onPress={() => user?.photoprofil && setViewerVisible(true)}>
             {user?.photoprofil ? (
               <Image
                 source={{ uri: user.photoprofil.startsWith('http') ? user.photoprofil : `${API_BASE_URL}${user.photoprofil}` }}
@@ -300,13 +218,9 @@ export default function PatientProfileScreen() {
               />
             ) : (
               <View style={styles.avatar}>
-                  <Ionicons name="person" size={100} color="#8E8E93" />
+                <Ionicons name="person" size={100} color="#8E8E93" />
               </View>
             )}
-            </Pressable>
-            <TouchableOpacity style={styles.editAvatarButton} onPress={handlePickAndUploadPhoto}>
-              <Ionicons name="camera" size={16} color="white" />
-            </TouchableOpacity>
           </View>
           
           <Text style={styles.userName}>
@@ -369,31 +283,6 @@ export default function PatientProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Modal de visualisation de photo */}
-      <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
-        <View style={styles.viewerBackdrop}>
-          <View style={styles.viewerHeader}>
-            <TouchableOpacity onPress={() => setViewerVisible(false)} style={styles.headerIconBtn}>
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={styles.viewerTitle}>Photo de profil</Text>
-            <TouchableOpacity onPress={handlePickAndUploadPhoto} style={styles.headerIconBtn}>
-              <Ionicons name="create-outline" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.viewerContainer}>
-            {user?.photoprofil ? (
-              <Image
-                resizeMode="contain"
-                source={{ uri: user.photoprofil.startsWith('http') ? user.photoprofil : `${API_BASE_URL}${user.photoprofil}` }}
-                style={styles.viewerImage}
-              />
-            ) : (
-              <Text style={styles.viewerPlaceholder}>Aucune photo de profil</Text>
-            )}
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -417,7 +306,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#8E8E93',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontFamily: 'System',
   },
   
   // Profile Header
@@ -451,36 +340,20 @@ const styles = StyleSheet.create({
     borderRadius: 110,
     backgroundColor: '#F2F2F7',
   },
-  editAvatarButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
   userName: {
     fontSize: 28,
     fontWeight: '700',
     color: '#000000',
     marginBottom: 8,
     textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontFamily: 'System',
   },
   userEmail: {
     fontSize: 16,
     color: '#8E8E93',
     marginBottom: 20,
     textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontFamily: 'System',
   },
   
   // Sections
@@ -503,7 +376,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#000000',
     marginBottom: 20,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontFamily: 'System',
   },
   
   // Contact Info
@@ -531,13 +404,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#8E8E93',
     marginBottom: 4,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontFamily: 'System',
   },
   contactText: {
     fontSize: 16,
     fontWeight: '500',
     color: '#000000',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontFamily: 'System',
   },
   
   // Menu
@@ -570,13 +443,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#000000',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontFamily: 'System',
   },
   menuItemSubtitle: {
     fontSize: 14,
     color: '#8E8E93',
     marginTop: 2,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontFamily: 'System',
   },
   menuDivider: {
     height: 1,
@@ -592,58 +465,6 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 12,
     color: '#8E8E93',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  
-  // Photo Viewer Modal
-  viewerBackdrop: {
-    flex: 1,
-    backgroundColor: '#000000',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  viewerHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    zIndex: 1,
-  },
-  headerIconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF20',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  viewerTitle: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  viewerContainer: {
-    width: '100%',
-    height: '80%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  viewerImage: {
-    width: '100%',
-    height: '85%',
-  },
-  viewerPlaceholder: {
-    color: '#FFFFFF80',
-    fontSize: 16,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontFamily: 'System',
   },
 });

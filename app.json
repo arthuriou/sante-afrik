@@ -40,12 +40,7 @@
           "icon": "./assets/images/icon.png",
           "color": "#ffffff",
           "sounds": [
-            "./assets/sounds/notification.mp3",
-            "./assets/sounds/message.mp3",
-            "./assets/sounds/appointment.mp3",
-            "./assets/sounds/reminder.mp3",
-            "./assets/sounds/emergency.mp3",
-            "./assets/sounds/comcell_message_1_ls.mp3"
+            "./assets/sounds/notifSound1.mp3"
           ]
         }
       ]

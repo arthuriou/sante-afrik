@@ -7,7 +7,7 @@ import { NotificationProvider, useNotifications } from '../../services/notificat
 
 function PatientTabs() {
   const pathname = usePathname();
-  const { unreadMessagesCount, unreadNotificationsCount, totalUnreadCount } = useNotifications();
+  const { unreadMessagesCount, unreadNotificationsCount, totalUnreadCount, updateUnreadCount } = useNotifications();
 
   useEffect(() => {
     const onBackPress = () => {
@@ -26,6 +26,31 @@ function PatientTabs() {
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
   }, [pathname]);
+
+  // Rafraîchir le badge en temps réel via socket (compteur non lus)
+  useEffect(() => {
+    let s: any;
+    (async () => {
+      try {
+        s = await (await import('../../services/socket')).createSocket();
+        s.on('message:new', () => {
+          console.log('🔄 Tab: Nouveau message reçu, mise à jour compteur');
+          updateUnreadCount();
+        });
+        s.on('new_message', () => {
+          console.log('🔄 Tab: Nouveau message reçu, mise à jour compteur');
+          updateUnreadCount();
+        });
+        s.on('conversation_read', () => {
+          console.log('🔄 Tab: Conversation lue, mise à jour compteur');
+          updateUnreadCount();
+        });
+      } catch (error) {
+        console.error('❌ Erreur setup socket tab:', error);
+      }
+    })();
+    return () => { try { s?.disconnect?.(); } catch {} };
+  }, [updateUnreadCount]);
 
   return (
     <Tabs
@@ -81,11 +106,13 @@ function PatientTabs() {
       {/* Masquer toutes les sous-pages pour éviter qu'elles apparaissent comme onglets */}
       <Tabs.Screen name="auth" options={{ href: null }} />
       <Tabs.Screen name="modals" options={{ href: null }} />
-      <Tabs.Screen name="screens/search" options={{ href: null }} />
+      <Tabs.Screen name="screens/search" options={{ href: null, title: "Rechercher un médecin" }} />
       <Tabs.Screen name="screens/doctor-detail" options={{ href: null }} />
       <Tabs.Screen name="screens/appointment-motif" options={{ href: null }} />
       <Tabs.Screen name="screens/notification-settings" options={{ href: null }} />
       <Tabs.Screen name="screens/messages/[id]" options={{ href: null }} />
+      <Tabs.Screen name="screens/consultations" options={{ href: null }} />
+      <Tabs.Screen name="screens/ordonnances" options={{ href: null }} />
 
       <Tabs.Screen
         name="screens/home"
@@ -152,41 +179,6 @@ function PatientTabs() {
           headerTitle: "Mes messages",
         }}
       />
-          <Tabs.Screen
-            name="screens/notifications"
-            options={{
-              title: "Notifications",
-              tabBarIcon: ({ color, size }) => (
-                <View style={{ position: 'relative' }}>
-                  <Ionicons name="notifications" size={size} color={color} />
-                  {unreadNotificationsCount > 0 && (
-                    <View style={{
-                      position: 'absolute',
-                      top: -2,
-                      right: -8,
-                      backgroundColor: '#FF3B30',
-                      borderRadius: 10,
-                      minWidth: 20,
-                      height: 20,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      borderWidth: 2,
-                      borderColor: '#FFFFFF',
-                    }}>
-                      <Text style={{
-                        color: '#FFFFFF',
-                        fontSize: 12,
-                        fontWeight: '700',
-                      }}>
-                        {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ),
-              headerTitle: "Mes notifications",
-            }}
-          />
       <Tabs.Screen
         name="screens/profile"
         options={{

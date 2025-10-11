@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Alert,
@@ -15,11 +15,12 @@ import {
 import { apiService } from '../../../services/api';
 
 export default function ChangePasswordScreen() {
-  const { email } = useLocalSearchParams();
+  const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const validatePassword = (password: string) => {
@@ -42,6 +43,11 @@ export default function ChangePasswordScreen() {
   };
 
   const handleChangePassword = async () => {
+    if (!oldPassword.trim()) {
+      Alert.alert('Erreur', 'Veuillez saisir votre ancien mot de passe');
+      return;
+    }
+
     if (!newPassword.trim()) {
       Alert.alert('Erreur', 'Veuillez saisir un nouveau mot de passe');
       return;
@@ -66,7 +72,7 @@ export default function ChangePasswordScreen() {
     setIsLoading(true);
     
     try {
-      await apiService.changePassword(email as string, newPassword);
+      await apiService.changePassword(oldPassword, newPassword);
 
       Alert.alert(
         'Succès',
@@ -113,6 +119,29 @@ export default function ChangePasswordScreen() {
           </Text>
 
           <View style={styles.form}>
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed" size={20} color="#718096" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Ancien mot de passe"
+                value={oldPassword}
+                onChangeText={setOldPassword}
+                secureTextEntry={!showOldPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+              />
+              <TouchableOpacity
+                onPress={() => setShowOldPassword(!showOldPassword)}
+                style={styles.eyeButton}
+              >
+                <Ionicons
+                  name={showOldPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color="#718096"
+                />
+              </TouchableOpacity>
+            </View>
             <View style={styles.inputContainer}>
               <Ionicons name="lock-closed" size={20} color="#718096" style={styles.inputIcon} />
               <TextInput
