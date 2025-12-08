@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Alert,
+    Image,
     KeyboardAvoidingView,
     Platform,
     SafeAreaView,
@@ -63,7 +64,11 @@ export default function PatientLoginScreen() {
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <View style={styles.logoIcon}>
-                <Ionicons name="medical" size={48} color="#007AFF" />
+                <Image 
+                  source={require('../../../assets/images/santéAfrik.png')} 
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
               </View>
             </View>
             <Text style={styles.title}>SantéAfrik</Text>
@@ -185,6 +190,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+  },
+  logoImage: {
+    width: 60,
+    height: 60,
   },
   title: {
     fontSize: 32,

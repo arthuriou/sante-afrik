@@ -38,13 +38,16 @@ function resolveApiBaseUrl(): string {
     return 'http://10.0.2.2:3000';
   }
 
-  // 5) iOS simulateur/dernier recours: localhost
-  return 'http://localhost:3000';
+  // 5) Forcer l'IP locale pour développement
+  return 'http://192.168.1.79:3000';
 }
 
 
 
 export const API_BASE_URL = resolveApiBaseUrl();
+
+// Debug de l'URL API
+console.log('🌐 URL API utilisée:', API_BASE_URL);
 
 // Types de base
 export interface User {
@@ -84,10 +87,11 @@ export interface Medecin {
   nom: string;
   prenom: string;
   email: string;
-  numordre: string;
+  numordre?: string;
   experience: number;
   biographie: string;
   statut: 'PENDING' | 'APPROVED';
+  photoprofil?: string;
   specialites?: Specialite[];
   cabinet?: Cabinet;
 }
@@ -368,6 +372,7 @@ class ApiService {
     body?: any;
     headers?: Record<string, string>;
     params?: Record<string, any>;
+    responseType?: 'json' | 'blob' | 'arraybuffer' | 'text';
   } = {}): Promise<T> {
     try {
       // S'assurer que le token est présent (ex: après redémarrage de l'app)
@@ -384,6 +389,7 @@ class ApiService {
         data: options.body,
         headers: options.headers,
         params: options.params,
+        responseType: options.responseType || 'json',
       });
       // @ts-ignore axios wraps data
       return response.data as T;
@@ -493,10 +499,17 @@ class ApiService {
     });
   }
 
-  async resetPassword(token: string, nouveauMotDePasse: string) {
-    return this.request('/api/auth/reset-password', {
+  async verifyOtp(email: string, otp: string) {
+    return this.request('/api/auth/verify-otp', {
       method: 'POST',
-      body: { token, nouveauMotDePasse },
+      body: { email, otp },
+    });
+  }
+
+  async resetPasswordWithOtp(email: string, otp: string, nouveauMotDePasse: string) {
+    return this.request('/api/auth/reset-password-otp', {
+      method: 'POST',
+      body: { email, otp, nouveauMotDePasse },
     });
   }
 
@@ -638,6 +651,11 @@ class ApiService {
     return this.request<{ message: string; data: User[] }>(url);
   }
 
+  async getMedecinById(medecinId: string) {
+    return this.request<{ message: string; data: Medecin }>(`/api/auth/medecins/${medecinId}`);
+  }
+
+
   async getUserById(userId: string) {
     return this.request<{ message: string; data: User }>(
       `/api/auth/user/${userId}`
@@ -763,6 +781,9 @@ class ApiService {
     // Récupérer l'ID du patient depuis le profil
     const profile = await this.getProfile();
     const patientId = profile.data.patient?.idpatient;
+    
+    console.log('🔍 API getOrdonnancesPatient - profile:', profile.data);
+    console.log('🔍 API getOrdonnancesPatient - patientId:', patientId);
     
     if (!patientId) {
       throw new Error('Patient ID non trouvé');
@@ -921,7 +942,12 @@ class ApiService {
       formData.append('conversation_id', conversationId);
     }
     
-    const response = await fetch(`${API_BASE_URL}/api/messagerie/messages`, {
+    const url = `${API_BASE_URL}/api/messagerie/messages`;
+    console.log('🚀 Envoi fichier vers:', url);
+    console.log('🔑 Token présent:', !!token);
+    console.log('📋 FormData keys:', Array.from(formData.keys()));
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -1060,6 +1086,35 @@ class ApiService {
     return this.request(`/api/notifications/devices/${token}`, {
       method: 'DELETE'
     });
+  }
+
+  // Téléchargement d'ordonnance PDF
+  async downloadOrdonnancePDF(ordonnanceId: string) {
+    try {
+      // S'assurer que le token est présent
+      if (!this.token) {
+        const storedToken = await AsyncStorage.getItem('userToken');
+        if (storedToken) {
+          this.setToken(storedToken);
+        }
+      }
+
+      const response = await this.client.request({
+        url: `/api/ordonnances/${ordonnanceId}/pdf`,
+        method: 'GET',
+        responseType: 'arraybuffer', // Utiliser arraybuffer au lieu de blob
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+        }
+      });
+
+      // Convertir arraybuffer en blob pour React Native
+      const arrayBuffer = response.data as ArrayBuffer;
+      return new Blob([arrayBuffer], { type: 'application/pdf' });
+    } catch (error) {
+      console.error('Erreur téléchargement PDF:', error);
+      throw error;
+    }
   }
 }
 

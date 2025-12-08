@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import {
+    Image,
     Platform,
     SafeAreaView,
     StyleSheet,
@@ -37,7 +38,11 @@ export default function WelcomeScreen() {
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <View style={styles.logoIcon}>
-              <Ionicons name="medical" size={64} color="#007AFF" />
+              <Image 
+                source={require('../assets/images/santéAfrik.png')} 
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
             <Text style={styles.logoText}>SantéAfrik</Text>
           </View>
@@ -105,6 +110,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
   },
   logoText: {
     fontSize: 36,

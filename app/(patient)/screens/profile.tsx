@@ -66,18 +66,7 @@ export default function PatientProfileScreen() {
         },
       ],
     },
-    {
-      title: 'Préférences',
-      items: [
-        {
-          id: 'notification-settings',
-          title: 'Préférences de notifications',
-          icon: 'notifications-outline',
-          action: 'navigate',
-          subtitle: 'Sons, vibrations, types',
-        },
-      ],
-    },
+    
     {
       title: 'Support',
       items: [
@@ -136,8 +125,6 @@ export default function PatientProfileScreen() {
           router.push('/(modals)/consultations');
         } else if (item.id === 'ordonnances') {
           router.push('/(modals)/ordonnances');
-        } else if (item.id === 'notification-settings') {
-          router.navigate('/(patient)/screens/notification-settings');
         } else {
           Alert.alert('Navigation', `Navigation vers ${item.title}`);
         }

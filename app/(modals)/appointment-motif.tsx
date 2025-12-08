@@ -23,9 +23,9 @@ export default function AppointmentMotifScreen() {
       const userDataRaw = await AsyncStorage.getItem('userData');
       const userData = userDataRaw ? JSON.parse(userDataRaw) : null;
       
-      // FORCER l'utilisation du bon ID patient pour le test
-      const patientId = '87b8d0d8-fcbc-4f68-a30f-b8d09d05bee0';
-      console.log('🔧 FORCE patientId pour test:', patientId);
+      // Utiliser le vrai ID patient depuis les données utilisateur
+      const patientId = userData?.patient?.idpatient;
+      console.log('🔧 Patient ID récupéré:', patientId);
       
       console.log('🔍 Debug patientId:', { 
         userData, 
@@ -48,7 +48,6 @@ export default function AppointmentMotifScreen() {
         } as any);
       } else {
         const rdvData: any = {
-          patient_id: patientId,
           medecin_id: params.doctorId as string,
           dateheure,
           duree,

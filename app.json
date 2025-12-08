@@ -6,7 +6,8 @@
     "extra": {
       "eas": {
         "projectId": "70db8865-35e0-497a-9bae-28d0454cd75f"
-      }
+      },
+      "apiUrl": "http://localhost:3000"
     },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

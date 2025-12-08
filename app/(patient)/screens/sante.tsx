@@ -1,13 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Linking,
     Platform,
     SafeAreaView,
     ScrollView,
@@ -27,6 +30,7 @@ export default function SanteScreen() {
   const [documents, setDocuments] = useState<DocumentMedical[]>([]);
   const [uploading, setUploading] = useState(false);
   const [openingDocument, setOpeningDocument] = useState<string | null>(null);
+  const [savedOrdonnances, setSavedOrdonnances] = useState<string[]>([]);
 
   useEffect(() => {
     bootstrap();
@@ -40,10 +44,37 @@ export default function SanteScreen() {
       const docs = await apiService.listDocuments(resp.dossier.iddossier);
       console.log('📄 Documents reçus:', docs);
       setDocuments(docs || []);
+      
+      // Charger les ordonnances sauvegardées localement
+      await loadSavedOrdonnances();
     } catch (e: any) {
       Alert.alert('Erreur', e.message || 'Impossible de charger le dossier');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSavedOrdonnances = async () => {
+    try {
+      const documentsDir = FileSystem.documentDirectory;
+      if (!documentsDir) return;
+      
+      const ordonnancesDir = `${documentsDir}ordonnances/`;
+      
+      // Créer le dossier ordonnances s'il n'existe pas
+      const dirInfo = await FileSystem.getInfoAsync(ordonnancesDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(ordonnancesDir, { intermediates: true });
+      }
+      
+      // Lister les fichiers PDF dans le dossier ordonnances
+      const files = await FileSystem.readDirectoryAsync(ordonnancesDir);
+      const pdfFiles = files.filter(file => file.endsWith('.pdf'));
+      
+      setSavedOrdonnances(pdfFiles);
+      console.log('✅ Ordonnances sauvegardées trouvées:', pdfFiles.length);
+    } catch (error) {
+      console.error('❌ Erreur chargement ordonnances sauvegardées:', error);
     }
   };
 
@@ -256,6 +287,87 @@ export default function SanteScreen() {
     });
   };
 
+  const handleOpenSavedOrdonnance = async (fileName: string) => {
+    try {
+      const documentsDir = FileSystem.documentDirectory;
+      if (!documentsDir) return;
+      
+      const fileUri = `${documentsDir}ordonnances/${fileName}`;
+      
+      // Vérifier que le fichier existe
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (!fileInfo.exists) {
+        Alert.alert('Erreur', 'Fichier non trouvé');
+        return;
+      }
+      
+      // Proposer plusieurs options d'ouverture
+      Alert.alert(
+        'Ouvrir l\'ordonnance',
+        'Comment souhaitez-vous ouvrir ce fichier ?',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { 
+            text: 'Ouvrir avec une app', 
+            onPress: async () => {
+              try {
+                const isAvailable = await Sharing.isAvailableAsync();
+                if (isAvailable) {
+                  await Sharing.shareAsync(fileUri, {
+                    mimeType: 'application/pdf',
+                    dialogTitle: 'Ouvrir l\'ordonnance'
+                  });
+                } else {
+                  Alert.alert('Erreur', 'Ouverture de fichier non disponible');
+                }
+              } catch (error) {
+                console.error('Erreur ouverture:', error);
+                Alert.alert('Erreur', 'Impossible d\'ouvrir le fichier');
+              }
+            }
+          },
+          { 
+            text: 'Partager', 
+            onPress: () => handleShareSavedOrdonnance(fileName)
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Erreur ouverture ordonnance:', error);
+      Alert.alert('Erreur', 'Impossible d\'ouvrir l\'ordonnance');
+    }
+  };
+
+  const handleShareSavedOrdonnance = async (fileName: string) => {
+    try {
+      const documentsDir = FileSystem.documentDirectory;
+      if (!documentsDir) return;
+      
+      const fileUri = `${documentsDir}ordonnances/${fileName}`;
+      
+      // Vérifier que le fichier existe
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (!fileInfo.exists) {
+        Alert.alert('Erreur', 'Fichier non trouvé');
+        return;
+      }
+      
+      // Partager le fichier
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Partager l\'ordonnance'
+        });
+      } else {
+        Alert.alert('Erreur', 'Partage non disponible');
+      }
+    } catch (error) {
+      console.error('Erreur partage ordonnance:', error);
+      Alert.alert('Erreur', 'Impossible de partager l\'ordonnance');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView 
@@ -362,6 +474,46 @@ export default function SanteScreen() {
             </View>
           </TouchableOpacity>
         </View>
+
+        {/* Ordonnances sauvegardées */}
+        {savedOrdonnances.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>📁 Ordonnances téléchargées</Text>
+              <Text style={styles.sectionSubtitle}>
+                {savedOrdonnances.length} ordonnance{savedOrdonnances.length > 1 ? 's' : ''} sauvegardée{savedOrdonnances.length > 1 ? 's' : ''} localement
+              </Text>
+              
+              <View style={styles.savedOrdonnancesList}>
+                {savedOrdonnances.map((fileName, index) => (
+                  <View key={index} style={styles.savedOrdonnanceItem}>
+                    <View style={styles.savedOrdonnanceIcon}>
+                      <Ionicons name="document-text" size={24} color="#007AFF" />
+                    </View>
+                    <View style={styles.savedOrdonnanceContent}>
+                      <Text style={styles.savedOrdonnanceName} numberOfLines={1}>{fileName}</Text>
+                      <Text style={styles.savedOrdonnanceType}>PDF • Ordonnance médicale</Text>
+                    </View>
+                    <View style={styles.savedOrdonnanceActions}>
+                      <TouchableOpacity 
+                        style={styles.savedActionButton}
+                        onPress={() => handleOpenSavedOrdonnance(fileName)}
+                      >
+                        <Ionicons name="open-outline" size={16} color="#007AFF" />
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={styles.savedActionButton}
+                        onPress={() => handleShareSavedOrdonnance(fileName)}
+                      >
+                        <Ionicons name="share-outline" size={16} color="#007AFF" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Documents List */}
         <View style={styles.section}>
@@ -758,5 +910,67 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     borderBottomWidth: 0,
+  },
+  
+  // Styles pour les ordonnances sauvegardées
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  savedOrdonnancesList: {
+    gap: 12,
+  },
+  savedOrdonnanceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  savedOrdonnanceIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#007AFF15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  savedOrdonnanceContent: {
+    flex: 1,
+  },
+  savedOrdonnanceName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  savedOrdonnanceType: {
+    fontSize: 12,
+    color: '#8E8E93',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  savedOrdonnanceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  savedActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
 });

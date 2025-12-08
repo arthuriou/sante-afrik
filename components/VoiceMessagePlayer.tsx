@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, StyleSheet, Text, TouchableOpacity, View, Image } from 'react-native';
 import { AudioService } from '../services/audio';
 import { useAudio } from '../services/audioContext';
 
@@ -8,13 +8,25 @@ interface VoiceMessagePlayerProps {
   audioUri: string;
   duration: number;
   isMine?: boolean;
+  senderPhoto?: string;
+  senderName?: string;
 }
 
 export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
   audioUri,
   duration,
   isMine = false,
+  senderPhoto,
+  senderName,
 }) => {
+  console.log('🎵 VoiceMessagePlayer props:', {
+    audioUri,
+    duration,
+    isMine,
+    senderPhoto,
+    senderName
+  });
+  
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -83,6 +95,8 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
 
   const togglePlayPause = async () => {
     try {
+      console.log('🎵 Tentative de lecture audio:', audioUri);
+      
       if (isPlaying) {
         // Pause
         await audioService.pauseAudio();
@@ -93,15 +107,24 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
         // Play - arrêter tous les autres audios d'abord
         setCurrentPlayingId(playerId);
         setIsLoading(true);
+        
+        // Vérifier que l'URI est valide
+        if (!audioUri || audioUri === 'undefined' || audioUri === 'null') {
+          throw new Error('URI audio invalide');
+        }
+        
+        console.log('🎵 Lecture de l\'audio:', audioUri);
         await audioService.playAudio(audioUri);
         setIsPlaying(true);
         startProgressTracking();
         setIsLoading(false);
       }
     } catch (error) {
-      console.error('Erreur lecture audio:', error);
+      console.error('❌ Erreur lecture audio:', error);
       setIsLoading(false);
       setCurrentPlayingId(null);
+      // Afficher une alerte pour l'utilisateur
+      Alert.alert('Erreur', `Impossible de lire le message vocal: ${(error as Error).message}`);
     }
   };
 
@@ -117,6 +140,30 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
 
   return (
     <View style={[styles.container, isMine && styles.containerMine]}>
+      {/* Photo de profil pour les messages reçus */}
+      {!isMine && (
+        <View style={styles.profileContainer}>
+          <View style={styles.profileImageContainer}>
+            {senderPhoto ? (
+              <Image
+                source={{ uri: senderPhoto }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={styles.profileImagePlaceholder}>
+                <Text style={styles.profileImageText}>
+                  {senderName?.[0] || 'U'}
+                </Text>
+              </View>
+            )}
+            {/* Icône microphone */}
+            <View style={styles.micIcon}>
+              <Ionicons name="mic" size={8} color="#FFFFFF" />
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Bouton play/pause */}
       <TouchableOpacity
         style={[styles.playButton, isMine && styles.playButtonMine]}
@@ -124,38 +171,39 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
         disabled={isLoading}
       >
         {isLoading ? (
-          <Ionicons name="hourglass-outline" size={20} color={isMine ? "#FFFFFF" : "#007AFF"} />
+          <Ionicons name="hourglass-outline" size={20} color="#FFFFFF" />
         ) : (
           <Ionicons 
-            name={isPlaying ? "pause-outline" : "play-outline"} 
+            name={isPlaying ? "pause" : "play"} 
             size={20} 
-            color={isMine ? "#FFFFFF" : "#007AFF"} 
+            color="#FFFFFF" 
+            style={isPlaying ? {} : { marginLeft: 2 }}
           />
         )}
       </TouchableOpacity>
 
-      {/* Barre de progression */}
-      <View style={[styles.progressContainer, isMine && styles.progressContainerMine]}>
-        <View style={[styles.progressTrack, isMine && styles.progressTrackMine]}>
+      {/* Visualisation audio avec barres */}
+      <View style={[styles.audioVisualization, isMine && styles.audioVisualizationMine]}>
+        {Array.from({ length: 12 }, (_, i) => (
           <Animated.View
+            key={i}
             style={[
-              styles.progressFill,
-              isMine && styles.progressFillMine,
-              { width: progressWidth }
+              styles.audioBar,
+              isMine && styles.audioBarMine,
+              isPlaying && styles.audioBarPlaying,
+              {
+                height: Math.random() * 20 + 8,
+                opacity: isPlaying ? 1 : 0.6,
+              }
             ]}
           />
-        </View>
-        
-        {/* Indicateurs de temps */}
-        <View style={styles.timeContainer}>
-          <Text style={[styles.timeText, isMine && styles.timeTextMine]}>
-            {formatTime(currentTime)}
-          </Text>
-          <Text style={[styles.timeText, isMine && styles.timeTextMine]}>
-            {formatTime(duration)}
-          </Text>
-        </View>
+        ))}
       </View>
+
+      {/* Durée */}
+      <Text style={[styles.durationText, isMine && styles.durationTextMine]}>
+        {formatTime(duration)}
+      </Text>
     </View>
   );
 };
@@ -164,67 +212,93 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 122, 255, 0.08)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     minWidth: 220,
     maxWidth: 300,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 122, 255, 0.15)',
+    overflow: 'hidden',
   },
   containerMine: {
-    backgroundColor: '#007AFF',
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#DCF8C6',
   },
-  playButton: {
+  profileContainer: {
+    marginRight: 8,
+  },
+  profileImageContainer: {
+    position: 'relative',
+  },
+  profileImage: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+  },
+  profileImagePlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#C7C7CC',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileImageText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  micIcon: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#34C759',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#34C759',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 122, 255, 0.2)',
   },
   playButtonMine: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: '#34C759',
   },
-  progressContainer: {
+  audioVisualization: {
     flex: 1,
-  },
-  progressContainerMine: {
-    // Pas de changement de style pour le conteneur
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: 'rgba(0, 122, 255, 0.2)',
-    borderRadius: 2,
-    marginBottom: 6,
-  },
-  progressTrackMine: {
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
-  },
-  progressFillMine: {
-    backgroundColor: '#FFFFFF',
-  },
-  timeContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 20,
   },
-  timeText: {
-    fontSize: 12,
-    color: '#666666',
+  audioVisualizationMine: {
+    // Pas de changement pour les messages envoyés
+  },
+  audioBar: {
+    width: 2,
+    backgroundColor: '#C7C7CC',
+    borderRadius: 1,
+    marginHorizontal: 1,
+  },
+  audioBarMine: {
+    backgroundColor: '#8E8E93',
+  },
+  audioBarPlaying: {
+    backgroundColor: '#34C759',
+  },
+  durationText: {
+    fontSize: 14,
+    color: '#8E8E93',
     fontWeight: '500',
+    marginLeft: 8,
   },
-  timeTextMine: {
-    color: 'rgba(255, 255, 255, 0.9)',
+  durationTextMine: {
+    color: '#8E8E93',
   },
 });

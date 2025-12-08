@@ -183,6 +183,7 @@ export default function MessagesScreen() {
     };
   }, []);
 
+
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <View style={styles.emptyIconContainer}>

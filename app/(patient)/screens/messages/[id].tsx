@@ -430,6 +430,7 @@ export default function PatientConversationScreen() {
         const formData = new FormData();
         formData.append('contenu', 'Image');
         formData.append('type_message', 'IMAGE');
+        formData.append('conversation_id', String(id));
         formData.append('file', {
           uri: asset.uri,
           type: asset.type || 'image/jpeg',
@@ -450,7 +451,25 @@ export default function PatientConversationScreen() {
         setMessages((prev) => [...prev, optimistic]);
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
 
+        console.log('📤 Envoi image - FormData:', {
+          conversation_id: String(id),
+          contenu: 'Image',
+          type_message: 'IMAGE',
+          file: {
+            uri: asset.uri,
+            type: asset.type || 'image/jpeg',
+            name: `image_${Date.now()}.jpg`
+          }
+        });
+        
         await apiService.sendMessageWithFile(String(id), 'Image', formData);
+        
+        console.log('✅ Image envoyée avec succès');
+        
+        // Supprimer le message optimiste et laisser Socket.IO ajouter le vrai message
+        setMessages((prev) => prev.filter(msg => msg.idmessage !== optimistic.idmessage));
+        
+        // Pas de rechargement - Socket.IO gère la mise à jour
       }
     } catch (error) {
       console.error('Erreur envoi image:', error);
@@ -473,6 +492,7 @@ export default function PatientConversationScreen() {
         const formData = new FormData();
         formData.append('contenu', asset.name || 'Fichier');
         formData.append('type_message', 'FICHIER');
+        formData.append('conversation_id', String(id));
         formData.append('file', {
           uri: asset.uri,
           type: asset.mimeType || 'application/octet-stream',
@@ -494,6 +514,9 @@ export default function PatientConversationScreen() {
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
 
         await apiService.sendMessageWithFile(String(id), asset.name || 'Fichier', formData);
+        
+        // Supprimer le message optimiste et laisser Socket.IO ajouter le vrai message
+        setMessages((prev) => prev.filter(msg => msg.idmessage !== optimistic.idmessage));
       }
     } catch (error) {
       console.error('Erreur envoi fichier:', error);
@@ -598,6 +621,7 @@ export default function PatientConversationScreen() {
       const formData = new FormData();
       formData.append('contenu', `Note vocale (${Math.floor(recordingAudio.duration)}s)`);
       formData.append('type_message', 'VOICE');
+      formData.append('conversation_id', String(id));
       formData.append('file', {
         uri: recordingAudio.uri,
         type: 'audio/m4a',
@@ -606,6 +630,9 @@ export default function PatientConversationScreen() {
 
       // Envoyer via API avec le fichier audio
       await apiService.sendMessageWithFile(String(id), `Note vocale (${Math.floor(recordingAudio.duration)}s)`, formData);
+      
+      // Supprimer le message optimiste et laisser Socket.IO ajouter le vrai message
+      setMessages((prev) => prev.filter(msg => msg.idmessage !== optimistic.idmessage));
       
       setRecordingAudio(null);
     } catch (error) {
@@ -649,13 +676,32 @@ export default function PatientConversationScreen() {
       fileUrl = (item as any).contenu || '';
       if (fileUrl && fileUrl.startsWith('/')) fileUrl = `${API_BASE_URL}${fileUrl}`;
     }
-    let displayUrl = isImageFlag ? fileUrl : fileUrl;
+    let displayUrl = fileUrl; // Utiliser fileUrl pour tous les types de fichiers
     // Les URLs Cloudinary sont déjà absolues, pas besoin de les modifier
     if (displayUrl && displayUrl.startsWith('/') && !displayUrl.startsWith('https://')) {
       displayUrl = `${API_BASE_URL}${displayUrl}`;
     }
+    
     const fileName = (item as any).fichier_nom || (item as any).fichierNom || '';
     const contentStr = (item as any).contenu || '';
+    
+    // Debug pour les messages vocaux
+    if (isVoice) {
+      console.log('🎵 Message vocal debug:', {
+        id: (item as any).idmessage,
+        fileUrl,
+        displayUrl,
+        contenu: (item as any).contenu,
+        contentStr,
+        type_message: typeMessage,
+        isMine,
+        expediteur: (item as any).expediteur,
+        expediteur_photoprofil: (item as any).expediteur_photoprofil || (item as any).expediteur?.photoprofil,
+        expediteur_prenom: (item as any).expediteur_prenom || (item as any).expediteur?.prenom,
+        expediteur_nom: (item as any).expediteur_nom || (item as any).expediteur?.nom,
+        duration: parseInt(contentStr?.match(/\((\d+)s\)/)?.[1] || contentStr?.match(/(\d+)s/)?.[1] || '0')
+      });
+    }
     const urlForImageHeuristic = displayUrl || contentStr;
     const looksLikeImage = /\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(urlForImageHeuristic || '');
     const looksLikeAudio = /\.(m4a|mp3|wav|aac|ogg)$/i.test(urlForImageHeuristic || '');
@@ -682,9 +728,18 @@ export default function PatientConversationScreen() {
           ) : isVoiceFinal && displayUrl ? (
             <VoiceMessagePlayer
               audioUri={displayUrl}
-              duration={parseInt(contentStr?.match(/\((\d+)s\)/)?.[1] || '0')}
+              duration={parseInt(contentStr?.match(/\((\d+)s\)/)?.[1] || contentStr?.match(/(\d+)s/)?.[1] || '0')}
               isMine={isMine}
+              senderPhoto={(item as any).expediteur_photoprofil || (item as any).expediteur?.photoprofil}
+              senderName={`${(item as any).expediteur_prenom || (item as any).expediteur?.prenom || ''} ${(item as any).expediteur_nom || (item as any).expediteur?.nom || ''}`}
             />
+          ) : isVoiceFinal ? (
+            <View style={styles.voiceMessagePlaceholder}>
+              <Ionicons name="mic-outline" size={20} color={isMine ? "#075E54" : "#007AFF"} />
+              <Text style={[styles.voiceMessageText, isMine && styles.voiceMessageTextMine]}>
+                Message vocal
+              </Text>
+            </View>
           ) : (
             <Text style={[styles.bubbleText, isMine && styles.bubbleTextRight]}>{contentStr}</Text>
           )}
@@ -990,7 +1045,22 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   bubbleTimeRight: { 
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#075E54',
+  },
+  voiceMessagePlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  voiceMessageText: {
+    fontSize: 14,
+    color: '#007AFF',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  voiceMessageTextMine: {
+    color: '#075E54',
   },
   inputBar: {
     flexDirection: 'row',

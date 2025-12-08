@@ -61,7 +61,12 @@ class NotificationService {
       console.log('🔔 Initialisation du service de notifications');
       
       // Demander les permissions
-      await this.requestPermissions();
+      const hasPermissions = await this.requestPermissions();
+      if (!hasPermissions) {
+        console.log('⚠️ Permissions de notification refusées - notifications push désactivées');
+        return;
+      }
+      
       // Configurer les channels Android (sons/vibration)
       await this.configureAndroidChannels();
       
@@ -81,11 +86,11 @@ class NotificationService {
   private async configureAndroidChannels() {
     try {
       if (Platform.OS !== 'android') return;
-      // Utiliser le son "message" inclus (./assets/sounds/message.mp3)
+      // Utiliser le son inclus (./assets/sounds/notifSound1.mp3)
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Notifications',
         importance: Notifications.AndroidImportance.MAX,
-        sound: 'notifSound1', // nom du fichier sans extension
+        sound: require('../assets/sounds/notifSound1.mp3'), // Chemin correct vers le fichier
         vibrationPattern: [0, 250, 250, 250],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: false,
@@ -96,7 +101,7 @@ class NotificationService {
       await Notifications.setNotificationChannelAsync('messages', {
         name: 'Messages',
         importance: Notifications.AndroidImportance.MAX,
-        sound: 'notifSound1',
+        sound: require('../assets/sounds/notifSound1.mp3'), // Chemin correct vers le fichier
         vibrationPattern: [0, 200, 100, 200],
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: false,
@@ -168,7 +173,14 @@ class NotificationService {
     let finalStatus = existingStatus;
 
     if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
+      console.log('🔔 Demande de permissions de notification...');
+      const { status } = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+        },
+      });
       finalStatus = status;
     }
 
@@ -239,6 +251,31 @@ class NotificationService {
           this.preferences = JSON.parse(cached);
         }
       } catch {}
+      
+      // Si pas de préférences, créer des préférences par défaut avec push activé
+      if (!this.preferences) {
+        console.log('🔧 Création de préférences par défaut avec push activé');
+        this.preferences = {
+          soundenabled: true,
+          soundfile: require('../assets/sounds/notifSound1.mp3'),
+          volume: 0.8,
+          vibration: true,
+          pushenabled: true, // Activé par défaut
+          emailenabled: false,
+          smsenabled: false,
+        };
+        
+        // Sauvegarder les préférences par défaut
+        await AsyncStorage.setItem('notificationPreferences', JSON.stringify(this.preferences));
+        
+        // Envoyer au serveur
+        try {
+          await apiService.updateNotificationPreferences(this.preferences);
+          console.log('✅ Préférences par défaut sauvegardées sur le serveur');
+        } catch (serverError) {
+          console.log('⚠️ Impossible de sauvegarder sur le serveur:', serverError);
+        }
+      }
     }
   }
 
@@ -296,7 +333,7 @@ class NotificationService {
           title,
           body,
           data,
-          sound: preferences?.soundenabled ? preferences.soundfile : false,
+          sound: preferences?.soundenabled ? require('../assets/sounds/notifSound1.mp3') : false,
         },
         trigger: seconds > 0 ? { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds } : null,
       };
@@ -326,7 +363,7 @@ class NotificationService {
           title,
           body,
           data,
-          sound: preferences.soundenabled ? preferences.soundfile : false,
+            sound: preferences.soundenabled ? require('../assets/sounds/notifSound1.mp3') : false,
         },
         trigger: null, // Immédiat
       };
@@ -442,6 +479,26 @@ class NotificationService {
     }
   }
 
+  // Fonction publique pour demander les permissions (peut être appelée depuis l'UI)
+  async requestPermissionsFromUI(): Promise<boolean> {
+    try {
+      console.log('🔔 Demande de permissions depuis l\'interface utilisateur');
+      const hasPermissions = await this.requestPermissions();
+      
+      if (hasPermissions) {
+        // Réinitialiser le service si les permissions sont accordées
+        await this.initialize();
+        return true;
+      } else {
+        console.log('❌ Permissions refusées par l\'utilisateur');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Erreur demande permissions UI:', error);
+      return false;
+    }
+  }
+
   // Obtenir le token Expo Push
   getExpoPushToken(): string | null {
     return this.expoPushToken;
@@ -528,7 +585,7 @@ class NotificationService {
               conversationId,
               screen: 'messages'
             },
-            sound: preferences.soundenabled ? 'notifSound1' : false,
+            sound: preferences.soundenabled ? require('../assets/sounds/notifSound1.mp3') : false,
           },
           trigger: null, // Immédiat
         };

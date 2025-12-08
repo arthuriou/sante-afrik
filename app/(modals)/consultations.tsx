@@ -109,70 +109,72 @@ export default function PatientConsultationsScreen() {
 
   const renderConsultation = ({ item }: { item: Consultation }) => (
     <View style={styles.consultationCard}>
-      {/* Header avec médecin et statut */}
-      <View style={styles.consultationHeader}>
-        <View style={styles.medecinInfo}>
-          <View style={styles.doctorIcon}>
-            <Ionicons name="medical" size={20} color="#FFFFFF" />
-          </View>
-          <View style={styles.doctorDetails}>
-            <Text style={styles.medecinName}>
-              Dr. {item.medecin_prenom} {item.medecin_nom}
-            </Text>
-            <View style={styles.consultationDate}>
-              <Ionicons name="calendar-outline" size={14} color="#8E8E93" />
-              <Text style={styles.dateText}>
-                {formatDate(item.date_consultation)}
-              </Text>
-            </View>
-          </View>
+      {/* En-tête professionnel */}
+      <View style={styles.professionalHeader}>
+        <Text style={styles.doctorTitle}>
+          Dr. {item.medecin_prenom} {item.medecin_nom}
+        </Text>
+        <Text style={styles.doctorSubtitle}>Médecin généraliste</Text>
+        <Text style={styles.consultationTitle}>FICHE CONSULTATION</Text>
+        <View style={styles.separatorLine} />
+        <Text style={styles.confidentialText}>CONFIDENTIEL</Text>
+      </View>
+
+      {/* Informations patient */}
+      <View style={styles.patientInfoSection}>
+        <Text style={styles.sectionTitle}>INFORMATIONS PATIENT</Text>
+        <View style={styles.separatorLine} />
+        
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Date de consultation :</Text>
+          <Text style={styles.infoValue}>{formatDate(item.date_consultation)}</Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.statut) }]}>
-          <Text style={styles.statusText}>{getStatusText(item.statut)}</Text>
+        
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Statut :</Text>
+          <Text style={styles.infoValue}>{getStatusText(item.statut)}</Text>
         </View>
       </View>
 
-      {/* Contenu principal */}
-      <View style={styles.consultationContent}>
-        {item.diagnostique && (
-          <View style={styles.infoSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="document-text" size={16} color="#007AFF" />
-              <Text style={styles.sectionTitle}>Diagnostic</Text>
-            </View>
-            <Text style={styles.sectionText} numberOfLines={3}>
-              {item.diagnostique}
-            </Text>
-          </View>
-        )}
+      {/* Diagnostic */}
+      {item.diagnostique && (
+        <View style={styles.medicalSection}>
+          <Text style={styles.sectionTitle}>DIAGNOSTIC</Text>
+          <View style={styles.separatorLine} />
+          <Text style={styles.medicalText}>{item.diagnostique}</Text>
+        </View>
+      )}
 
-        {item.traitement_propose && (
-          <View style={styles.infoSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="medical" size={16} color="#34C759" />
-              <Text style={styles.sectionTitle}>Traitement</Text>
-            </View>
-            <Text style={styles.sectionText} numberOfLines={3}>
-              {item.traitement_propose}
-            </Text>
-          </View>
-        )}
+      {/* Traitement */}
+      {item.traitement_propose && (
+        <View style={styles.medicalSection}>
+          <Text style={styles.sectionTitle}>TRAITEMENT PROPOSÉ</Text>
+          <View style={styles.separatorLine} />
+          <Text style={styles.medicalText}>{item.traitement_propose}</Text>
+        </View>
+      )}
 
-        {item.prescriptions && (
-          <View style={styles.infoSection}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="receipt" size={16} color="#FF9500" />
-              <Text style={styles.sectionTitle}>Prescriptions</Text>
-            </View>
-            <Text style={styles.sectionText} numberOfLines={3}>
-              {item.prescriptions}
-            </Text>
-          </View>
-        )}
-      </View>
+      {/* Prescriptions */}
+      {item.prescriptions && (
+        <View style={styles.medicalSection}>
+          <Text style={styles.sectionTitle}>PRESCRIPTIONS</Text>
+          <View style={styles.separatorLine} />
+          <Text style={styles.medicalText}>{item.prescriptions}</Text>
+        </View>
+      )}
 
-      {/* Footer */}
-      <View style={styles.consultationFooter}>
+      {/* Recommandations */}
+      {item.recommandations && (
+        <View style={styles.medicalSection}>
+          <Text style={styles.sectionTitle}>RECOMMANDATIONS</Text>
+          <View style={styles.separatorLine} />
+          <Text style={styles.medicalText}>{item.recommandations}</Text>
+        </View>
+      )}
+
+      {/* Footer professionnel */}
+      <View style={styles.professionalFooter}>
+        <View style={styles.separatorLine} />
         <Text style={styles.footerText}>
           {item.finalise_le ? `Finalisée le ${formatDate(item.finalise_le)}` : 'En cours de traitement'}
         </Text>
@@ -313,21 +315,87 @@ const styles = StyleSheet.create({
   },
   consultationCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
     marginHorizontal: 16,
-    marginBottom: 16,
-    overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    marginBottom: 20,
+    padding: 0,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  professionalHeader: {
+    padding: 20,
+    backgroundColor: '#F8F9FA',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  doctorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: 4,
+  },
+  doctorSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 15,
+  },
+  consultationTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    fontStyle: 'italic',
+    color: '#000',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  separatorLine: {
+    height: 1,
+    backgroundColor: '#000',
+    marginVertical: 8,
+  },
+  confidentialText: {
+    fontSize: 12,
+    color: '#000',
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  patientInfoSection: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  medicalSection: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: '#000',
+    fontWeight: '500',
+    flex: 1,
+    minWidth: '40%',
+  },
+  infoValue: {
+    fontSize: 14,
+    color: '#333',
+    flex: 1,
+    textAlign: 'right',
+    flexWrap: 'wrap',
+  },
+  medicalText: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  professionalFooter: {
+    padding: 20,
+    backgroundColor: '#F8F9FA',
   },
   consultationHeader: {
     flexDirection: 'row',
@@ -342,15 +410,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-  },
-  doctorIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
   },
   doctorDetails: {
     flex: 1,
@@ -376,16 +435,11 @@ const styles = StyleSheet.create({
   infoSection: {
     marginBottom: 16,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: '#000',
-    marginLeft: 8,
+    marginBottom: 8,
   },
   sectionText: {
     fontSize: 14,
@@ -402,24 +456,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  consultationDate: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  dateText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginLeft: 6,
-  },
   diagnosticSection: {
     marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
   },
   diagnosticText: {
     fontSize: 14,

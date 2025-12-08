@@ -5,6 +5,7 @@ import {
     ActivityIndicator,
     Alert,
     Dimensions,
+    Image,
     Platform,
     SafeAreaView,
     ScrollView,
@@ -14,8 +15,6 @@ import {
     View
 } from 'react-native';
 import { apiService, Medecin } from '../../services/api';
-
-const { width } = Dimensions.get('window');
 
 export default function PatientDoctorDetailScreen() {
   const router = useRouter();
@@ -46,7 +45,8 @@ export default function PatientDoctorDetailScreen() {
     }
   }, [params.doctor]);
 
-  const doctorId = (params.doctorId as string) || doctorFromParam?.idmedecin;
+  const [doctor, setDoctor] = useState<Medecin | null>(doctorFromParam);
+  const doctorId = (params.doctorId as string) || doctor?.idmedecin;
   
   console.log('👨‍⚕️ Doctor ID debug:', { 
     paramsDoctorId: params.doctorId, 
@@ -54,6 +54,25 @@ export default function PatientDoctorDetailScreen() {
     finalDoctorId: doctorId,
     doctorFromParam: doctorFromParam 
   });
+
+  // Charger les vraies données du médecin
+  useEffect(() => {
+    const loadDoctorData = async () => {
+      if (!doctorId) return; // Toujours essayer de charger les données complètes
+      try {
+        console.log('🔄 Chargement des données complètes du médecin:', doctorId);
+        const response = await apiService.getMedecinById(doctorId);
+        console.log('✅ Données médecin chargées:', response.data);
+        setDoctor(response.data);
+      } catch (error) {
+        console.log('❌ Erreur chargement médecin:', error);
+        if (doctorFromParam) {
+          setDoctor(doctorFromParam); // Fallback sur les données des paramètres
+        }
+      }
+    };
+    loadDoctorData();
+  }, [doctorId, doctorFromParam]);
 
   useEffect(() => {
     const loadSlots = async () => {
@@ -82,6 +101,8 @@ export default function PatientDoctorDetailScreen() {
         
         // Mapper et découper les créneaux du backend en créneaux de 30 minutes
         const mappedCreneaux: any[] = [];
+        const seenSlots = new Set<string>(); // Pour éviter les doublons
+        let globalSlotIndex = 0;
         
         creneauxData.forEach((creneau: any) => {
           const startTime = new Date(creneau.start_at || creneau.debut);
@@ -96,7 +117,6 @@ export default function PatientDoctorDetailScreen() {
           
           // Découper en créneaux de 30 minutes
           let currentTime = new Date(startTime);
-          let slotIndex = 0;
           
           while (currentTime < endTime) {
             const slotEnd = new Date(currentTime.getTime() + 30 * 60000);
@@ -104,18 +124,27 @@ export default function PatientDoctorDetailScreen() {
             // S'assurer qu'on ne dépasse pas la fin du créneau original
             if (slotEnd > endTime) break;
             
-            mappedCreneaux.push({
-              idcreneau: `${creneauId}_slot_${slotIndex}`,
-              debut: currentTime.toISOString(),
-              fin: slotEnd.toISOString(),
-              disponible: creneau.visible_en_ligne !== false,
-              originalCreneauId: creneauId
-            });
+            // Créer une clé unique pour éviter les doublons
+            const slotKey = `${currentTime.toISOString()}_${slotEnd.toISOString()}`;
             
-            console.log(`🔪 Slot ${slotIndex}: ${currentTime.toLocaleTimeString()} - ${slotEnd.toLocaleTimeString()} (ID: ${creneauId}_slot_${slotIndex})`);
+            if (!seenSlots.has(slotKey)) {
+              seenSlots.add(slotKey);
+              
+              mappedCreneaux.push({
+                idcreneau: `${creneauId}_slot_${globalSlotIndex}`,
+                debut: currentTime.toISOString(),
+                fin: slotEnd.toISOString(),
+                disponible: creneau.visible_en_ligne !== false,
+                originalCreneauId: creneauId
+              });
+              
+              console.log(`🔪 Slot ${globalSlotIndex}: ${currentTime.toLocaleTimeString()} - ${slotEnd.toLocaleTimeString()} (ID: ${creneauId}_slot_${globalSlotIndex})`);
+            } else {
+              console.log(`⚠️ Slot dupliqué ignoré: ${currentTime.toLocaleTimeString()} - ${slotEnd.toLocaleTimeString()}`);
+            }
             
             currentTime = new Date(slotEnd);
-            slotIndex++;
+            globalSlotIndex++;
           }
         });
         
@@ -123,35 +152,7 @@ export default function PatientDoctorDetailScreen() {
         console.log('🔄 Premier créneau découpé:', mappedCreneaux[0]);
         console.log('🔄 Dernier créneau découpé:', mappedCreneaux[mappedCreneaux.length - 1]);
         
-        // Si pas de créneaux, créer des créneaux de test pour debug
-        if (mappedCreneaux.length === 0) {
-          console.log('🧪 Création de créneaux de test...');
-          const testCreneaux = [];
-          const baseDate = new Date(selectedDate);
-          
-          // Créer des créneaux de 9h à 17h toutes les 30 minutes
-          for (let hour = 9; hour < 17; hour++) {
-            for (let minute = 0; minute < 60; minute += 30) {
-              const startTime = new Date(baseDate);
-              startTime.setHours(hour, minute, 0, 0);
-              
-              const endTime = new Date(startTime);
-              endTime.setMinutes(endTime.getMinutes() + 30);
-              
-              testCreneaux.push({
-                idcreneau: `test_${hour}_${minute}`,
-                debut: startTime.toISOString(),
-                fin: endTime.toISOString(),
-                disponible: Math.random() > 0.3 // 70% de chance d'être disponible
-              });
-            }
-          }
-          
-          console.log('🧪 Créneaux de test créés:', testCreneaux.length);
-          setCreneaux(testCreneaux);
-        } else {
-          setCreneaux(mappedCreneaux);
-        }
+        setCreneaux(mappedCreneaux);
         
       } catch (e) {
         console.log('❌ Erreur chargement créneaux:', e);
@@ -193,9 +194,17 @@ export default function PatientDoctorDetailScreen() {
         <View style={styles.header}>
           <View style={styles.doctorImageContainer}>
             <View style={styles.doctorImage}>
-              <Ionicons name="person" size={60} color="#8E8E93" />
+              {doctor?.photoprofil ? (
+                <Image 
+                  source={{ uri: doctor.photoprofil }} 
+                  style={styles.doctorImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Ionicons name="person" size={60} color="#8E8E93" />
+              )}
             </View>
-            {doctorFromParam?.statut === 'APPROVED' && (
+            {doctor?.statut === 'APPROVED' && (
               <View style={styles.verifiedBadge}>
                 <Ionicons name="checkmark" size={16} color="white" />
               </View>
@@ -203,10 +212,10 @@ export default function PatientDoctorDetailScreen() {
           </View>
           
           <Text style={styles.doctorName}>
-            Dr. {doctorFromParam ? `${doctorFromParam.prenom} ${doctorFromParam.nom}` : 'Médecin'}
+            Dr. {doctor ? `${doctor.prenom} ${doctor.nom}` : 'Médecin'}
           </Text>
           <Text style={styles.doctorSpecialty}>
-            {doctorFromParam?.specialites?.map(s => s.nom).join(', ') || 'Spécialité'}
+            {doctor?.specialites?.map(s => s.nom).join(', ') || 'Spécialité'}
           </Text>
           
           <View style={styles.ratingContainer}>
@@ -215,8 +224,8 @@ export default function PatientDoctorDetailScreen() {
             <Text style={styles.reviews}>(127 avis)</Text>
           </View>
           
-          {doctorFromParam?.experience != null && (
-            <Text style={styles.experience}>{doctorFromParam.experience} ans d'expérience</Text>
+          {doctor?.experience != null && (
+            <Text style={styles.experience}>{doctor.experience} ans d'expérience</Text>
           )}
         </View>
 
@@ -231,8 +240,8 @@ export default function PatientDoctorDetailScreen() {
                 </View>
                 <View style={styles.contactDetails}>
                   <Text style={styles.contactLabel}>Cabinet</Text>
-                  <Text style={styles.contactText}>{doctorFromParam?.cabinet?.nom || 'Cabinet médical'}</Text>
-                  <Text style={styles.contactSubtext}>{doctorFromParam?.cabinet?.adresse || 'Adresse indisponible'}</Text>
+                  <Text style={styles.contactText}>{doctor?.cabinet?.nom || 'Cabinet médical'}</Text>
+                  <Text style={styles.contactSubtext}>{doctor?.cabinet?.adresse || 'Adresse indisponible'}</Text>
                 </View>
               </View>
               
@@ -242,7 +251,7 @@ export default function PatientDoctorDetailScreen() {
                 </View>
                 <View style={styles.contactDetails}>
                   <Text style={styles.contactLabel}>Email</Text>
-                  <Text style={styles.contactText}>{doctorFromParam?.email || 'Email indisponible'}</Text>
+                  <Text style={styles.contactText}>{doctor?.email || 'Email indisponible'}</Text>
                 </View>
             </View>
               
@@ -252,7 +261,7 @@ export default function PatientDoctorDetailScreen() {
                 </View>
                 <View style={styles.contactDetails}>
                   <Text style={styles.contactLabel}>Téléphone</Text>
-                  <Text style={styles.contactText}>{doctorFromParam?.cabinet?.telephone || 'Téléphone indisponible'}</Text>
+                  <Text style={styles.contactText}>{doctor?.cabinet?.telephone || 'Téléphone indisponible'}</Text>
                 </View>
             </View>
             </View>
@@ -260,11 +269,11 @@ export default function PatientDoctorDetailScreen() {
         </View>
 
         {/* À propos */}
-        {doctorFromParam?.biographie && (
+        {doctor?.biographie && (
         <View style={styles.section}>
             <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>À propos</Text>
-              <Text style={styles.description}>{doctorFromParam.biographie}</Text>
+              <Text style={styles.description}>{doctor.biographie}</Text>
         </View>
             </View>
         )}
@@ -674,7 +683,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    minWidth: (width - 120) / 3,
+    minWidth: (Dimensions.get('window').width - 120) / 3,
     alignItems: 'center',
   },
   timeSlotUnavailable: {

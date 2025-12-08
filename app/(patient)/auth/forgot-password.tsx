@@ -30,9 +30,9 @@ export default function ForgotPasswordScreen() {
       await apiService.forgotPassword(email);
       
       Alert.alert(
-        'Email envoyé',
-        'Un lien de réinitialisation a été envoyé à votre adresse email',
-        [{ text: 'OK', onPress: () => router.back() }]
+        'Code OTP envoyé',
+        'Un code de vérification a été envoyé à votre adresse email',
+        [{ text: 'OK', onPress: () => router.push(`/(auth)/patient/otp-verification?email=${encodeURIComponent(email)}` as any) }]
       );
     } catch (error: any) {
       Alert.alert('Erreur', error.message || 'Une erreur est survenue');

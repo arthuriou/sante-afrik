@@ -109,8 +109,7 @@ function PatientTabs() {
       <Tabs.Screen name="screens/search" options={{ href: null, title: "Rechercher un médecin" }} />
       <Tabs.Screen name="screens/doctor-detail" options={{ href: null }} />
       <Tabs.Screen name="screens/appointment-motif" options={{ href: null }} />
-      <Tabs.Screen name="screens/notification-settings" options={{ href: null }} />
-      <Tabs.Screen name="screens/messages/[id]" options={{ href: null }} />
+      <Tabs.Screen name="screens/messages/[id]" options={{ href: null , title: "Discussion" }} />
       <Tabs.Screen name="screens/consultations" options={{ href: null }} />
       <Tabs.Screen name="screens/ordonnances" options={{ href: null }} />
 
